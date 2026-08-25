@@ -1,0 +1,411 @@
+================================================================================
+PROMPT RECORD — Video Dialogue Locator (Quest1 Take-Home)
+Authoritative, append-only log of development prompts.
+Recorded only on explicit request. Entries are verbatim and are never
+edited or rewritten after being recorded.
+================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #1
+--------------------------------------------------------------------------------
+Purpose: Kickoff instruction for the analysis-only phase. Requested
+extraction of explicit requirements, identification of ambiguities,
+inspection of the supplied video/URL, and comparison of candidate technical
+approaches, without writing any implementation.
+
+Exact prompt:
+"""
+I am working on the Quest1 take-home problem. Read the complete problem statement carefully before proposing or implementing anything.
+
+Your task at this stage is ONLY analysis and investigation. Do not write the application yet.
+
+1. Extract every explicit requirement from the problem statement.
+2. Identify the required inputs, outputs, constraints, and evaluation criteria.
+3. Identify ambiguities in the problem statement, particularly:
+   - what "on-screen dialogue" means,
+   - what "first appears" means,
+   - what constitutes the "exact video frame".
+4. Inspect the supplied video and determine what the target dialogue actually represents in the provided input.
+5. Determine whether the dialogue is:
+   - visually displayed text,
+   - spoken audio,
+   - subtitles,
+   - or another representation.
+6. Identify the technical subproblems that need to be solved.
+7. Consider possible approaches including:
+   - speech-to-text,
+   - OCR,
+   - VLMs,
+   - NLP/text matching,
+   - conventional video/frame processing.
+8. Compare the approaches based on:
+   - correctness,
+   - complexity,
+   - runtime,
+   - robustness,
+   - ease of testing,
+   - explainability,
+   - suitability for the supplied problem.
+9. Identify likely failure cases.
+10. Recommend an approach, but clearly separate your recommendation from facts established by the problem statement or supplied video.
+
+Do not introduce technologies simply because they are available.
+
+The objective is to understand the problem and establish evidence before implementation.
+"""
+
+Resulting decision / outcome:
+No decision requested in this prompt — analysis and investigation only.
+The assistant produced a structured requirements/ambiguity/approach
+analysis; no engineering decision was made or adopted by the user at this
+point.
+
+--------------------------------------------------------------------------------
+Prompt #2
+--------------------------------------------------------------------------------
+Purpose: Architecture decision — set the primary/secondary pipeline split
+(audio vs. image) and requested a search strategy to avoid exhaustive
+frame-by-frame scanning of long videos.
+
+Exact prompt:
+"""
+ok so since it is clear that the videos that the urls lead to might not always have on screen text i want the audio, that is, speech to text to be the primary source of truth, we would also do OCR and text extraction from image but that would be a secondary pipeline, i would also want to introduce   deterministic algorithm where the total number of frames would be split into 2 say in a binary search way to reduce the time it would take since the videos might be very long and going through all the frames would not make any sense
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): Speech-to-text (ASR) is the primary source of
+truth for locating the dialogue, since target videos are not guaranteed to
+contain on-screen text. OCR / image-based text extraction is a secondary
+pipeline. A deterministic divide-and-conquer ("binary search"-style) frame
+search is to be used to avoid linearly scanning every frame, given videos
+may be very long.
+
+--------------------------------------------------------------------------------
+Prompt #3
+--------------------------------------------------------------------------------
+Purpose: Establish the prompt-logging process itself — defines prompt.txt
+as the authoritative, append-only record of development prompts, its
+required fields, and the boundary between AI-generated recommendations and
+the user's own engineering decisions.
+
+Exact prompt:
+"""
+This project requires an auditable record of AI-assisted development.
+
+I will maintain prompt.txt as the authoritative record of the prompts
+used during development.
+
+Whenever I explicitly ask you to record a prompt, append the exact
+prompt verbatim to prompt.txt.
+
+Do not silently modify or rewrite previously recorded prompts.
+
+For each recorded prompt, include:
+- prompt number
+- purpose
+- exact prompt
+- resulting decision or outcome, if I provide one
+
+Do not record casual conversation or exploratory questions unless I
+explicitly identify them as development prompts.
+
+The engineering decisions remain mine. Do not represent an AI-generated
+recommendation as my decision unless I explicitly adopt it. do record the prompts that i have already given you
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): prompt.txt is adopted as the authoritative
+record of development prompts. Prompts are recorded only when explicitly
+requested, verbatim, and never silently edited after being recorded. Each
+entry must include prompt number, purpose, exact prompt, and resulting
+decision/outcome (if provided). Casual or exploratory conversation is
+excluded unless explicitly flagged as a development prompt. AI-generated
+recommendations must not be represented as the user's decision unless the
+user has explicitly adopted them.
+
+================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #4
+--------------------------------------------------------------------------------
+Purpose: Architecture decision — committed to a concrete ASR-only pipeline
+(OCR explicitly excluded at this point) and requested a full implementation
+design (component responsibilities, module structure, interfaces, data
+structures, matching/refinement/FPS handling, uncertainty representation,
+logging/error handling, CLI, UI independence) without writing code yet.
+
+Exact prompt:
+"""
+Based on the investigation, I have decided to implement the solution using:
+
+Video URL
+→ video acquisition
+→ audio extraction
+→ timestamped speech-to-text
+→ target dialogue matching
+→ temporal refinement
+→ exact frame extraction
+→ structured result
+
+The supplied video does not contain the target dialogue as visible on-screen text, so OCR/subtitle detection is not part of the core implementation.
+
+Now design the implementation around this decision.
+
+Before writing code:
+
+1. Define the responsibilities of each component.
+2. Propose a modular project structure.
+3. Define the interfaces between modules.
+4. Define the data structures passed between modules.
+5. Explain how timestamped transcription will be represented.
+6. Explain how target dialogue matching will handle:
+   - capitalization,
+   - punctuation,
+   - whitespace,
+   - transcription errors,
+   - dialogue split across transcript segments,
+   - multiple occurrences.
+7. Explain how the approximate speech timestamp will be converted into the required frame.
+8. Explain how different FPS values will be handled.
+9. Explain how temporal refinement will work.
+10. Define how uncertainty and failure will be represented.
+11. Define the logging and error-handling strategy.
+12. Define the CLI interface.
+13. Define how the core pipeline will remain independent of a future UI.
+
+Do not implement the system yet.
+
+Do not introduce a VLM, OCR system, database, frontend, queue, cloud infrastructure, or other additional architecture unless you can demonstrate that the current requirements genuinely require it.
+
+The goal is a simple, extensible implementation that solves the stated problem without implementing imaginary future requirements.
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): committed to an ASR-only pipeline for the initial
+design (OCR excluded, based on the user's stated observation about the
+sample video). DESIGN.md was authored covering all 13 requested points.
+This scope was later revisited and reversed in Prompt #6 below.
+
+--------------------------------------------------------------------------------
+Prompt #5
+--------------------------------------------------------------------------------
+Purpose: Challenged the basis for dropping OCR from the design.
+
+Exact prompt:
+"""
+why have we dropped OCR?
+"""
+
+Resulting decision / outcome:
+No new decision in this prompt. The assistant clarified that "OCR dropped"
+was based on the user's own stated observation in Prompt #4, not on
+independent frame inspection (an earlier video download attempt had been
+skipped per user instruction). The assistant flagged a documentation error
+(DESIGN.md cited a non-existent "Prompt #4" confirmation) and asked the
+user to confirm the basis via a clarifying question, leading to Prompt #6.
+
+--------------------------------------------------------------------------------
+Prompt #6
+--------------------------------------------------------------------------------
+Purpose: Answer to the assistant's clarifying question about whether the
+"no on-screen text" premise was user-verified or needed technical
+verification — resulted in reinstating OCR into the design.
+
+Exact prompt:
+"""
+No ok, so the video that they have provided as a sample does not contain any on-screen text for that dialogue, what what if another input url leads to a video that does? this is why i wanted to include OCR as well. But that being said, on-screen text is not the most reliable, there may be lag, or the text migh be wrong. but only because the problem statement doc explicitly keeps saying extract on-screen text, include OCR also
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): OCR is reinstated as a secondary/fallback
+pipeline (matching the original Prompt #2 decision), because (a) the
+evaluator may substitute a different video that does rely on visible
+on-screen text, and (b) the problem statement's own wording centers on
+on-screen dialogue. OCR is explicitly acknowledged as less reliable
+(rendering lag, misreads) than speech, hence secondary rather than
+equal-priority. DESIGN.md was updated accordingly.
+
+--------------------------------------------------------------------------------
+Prompt #7
+--------------------------------------------------------------------------------
+Purpose: Asked whether a better algorithm than the user's own "binary
+search over frames" idea exists for the OCR localization/refinement
+problem.
+
+Exact prompt:
+"""
+can we do something better than my binary search idea, are there any methods/ algorithms dedicated to optimise this?
+"""
+
+Resulting decision / outcome:
+No decision in this prompt — a question. The assistant proposed splitting
+the problem into (a) global localization, where shot-boundary/keyframe
+sampling plus a cheap text-region cascade prefilter replaces fixed-interval
+sampling, and (b) local boundary refinement, where a linear scan replaces
+bisection because OCR is a noisy oracle a single bisection misread cannot
+recover from; noisy binary search was named as the theoretically "correct"
+but disproportionate alternative, not adopted. Awaiting confirmation.
+
+--------------------------------------------------------------------------------
+Prompt #8
+--------------------------------------------------------------------------------
+Purpose: Adopted the assistant's algorithm proposal from Prompt #7.
+
+Exact prompt:
+"""
+yes, update DESIGN.md with these changes
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): adopted shot-boundary/keyframe sampling + cascade
+prefilter (replacing fixed-interval OCR sampling) and linear scan
+(replacing bisection) for local frame-boundary refinement. DESIGN.md
+sections 6 and 9, the pipeline diagram, component table, interfaces, and
+data structures (RefinedTime.method) were updated accordingly.
+
+--------------------------------------------------------------------------------
+Prompt #9
+--------------------------------------------------------------------------------
+Purpose: Requested an AGENTS.md organizing the user's own stated
+engineering requirements and constraints into instructions for an AI
+coding agent, explicitly without the assistant making new architectural
+decisions.
+
+Exact prompt:
+"""
+I want to create an AGENTS.md for this repository.
+
+Do not make architectural decisions on my behalf. I will provide the
+project decisions and constraints; your job is to organize them into
+clear instructions for an AI coding agent.
+
+The project is a video-dialogue localization system using:
+
+- speech-to-text for spoken dialogue localization
+- OCR for visually displayed dialogue/text
+- multimodal matching/fusion
+- temporal refinement
+- exact frame extraction
+
+My engineering requirements are:
+
+- modular architecture
+- unit tests for every non-trivial function
+- isolated/mocked external ML dependencies in unit tests
+- integration tests for real component interaction
+- structured error handling
+- Python logging
+- CLI initially
+- core pipeline independent of the UI
+- future UI should be possible without changing core business logic
+- no unnecessary VLM, database, queue, cloud infrastructure, or other
+  complexity unless justified by an actual requirement
+- no hardcoded video URL, target text, FPS, timestamps, or frame numbers
+- AI-generated code must be reviewed and understood
+- meaningful AI development prompts are recorded in prompt.txt
+- important engineering decisions are recorded separately
+- tests must be run after implementation changes
+- the agent must not weaken tests just to make them pass
+
+The AGENTS.md should define:
+
+1. Project context
+2. Architecture principles
+3. Module responsibilities
+4. Testing requirements
+5. Error handling
+6. Logging
+7. Development workflow
+8. Scope-control rules
+9. AI-assisted development principles
+10. Definition of done
+
+Do not write application code.
+
+Do not invent requirements that I have not specified.
+
+Keep the AGENTS.md concise enough that it remains useful to an AI coding
+agent rather than becoming a general project essay. our entire design discussion is valid too, take that into consideration while creating the file
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): AGENTS.md created, organizing the above
+requirements under the 10 requested headings, built entirely from what was
+already established in DESIGN.md and prompt.txt rather than introducing new
+architectural decisions.
+
+--------------------------------------------------------------------------------
+Prompt #10
+--------------------------------------------------------------------------------
+Purpose: Clarifying question about current OCR execution mode.
+
+Exact prompt:
+"""
+ok so just confirming, is OCR just a fallback or is it a parallel
+"""
+
+Resulting decision / outcome:
+No new decision — the assistant confirmed the existing DESIGN.md already
+specifies sequential fallback (OCR runs only when ASR finds no confident
+match), not parallel execution, and offered the parallel alternative's
+tradeoffs for consideration.
+
+--------------------------------------------------------------------------------
+Prompt #11
+--------------------------------------------------------------------------------
+Purpose: Requested a factual efficiency comparison between fallback and
+parallel execution of the ASR and OCR pipelines.
+
+Exact prompt:
+"""
+which do you think would be more efficient, state proper facts
+"""
+
+Resulting decision / outcome:
+No decision by itself — the assistant provided a factual cost comparison:
+ASR is one linear pass over audio only; the OCR pipeline's shot-detection
+requires a full video-frame decode pass before any OCR runs. Fallback's
+total cost is a strict subset of parallel's, since parallel pays both costs
+unconditionally on every run. Conclusion: fallback is more efficient on
+total compute, and parallel's only edge (wall-clock latency via
+concurrency) isn't justified by any stated latency requirement.
+
+--------------------------------------------------------------------------------
+Prompt #12
+--------------------------------------------------------------------------------
+Purpose: Adopted the efficiency rationale into the design record and
+initiated implementation.
+
+Exact prompt:
+"""
+yes, add it to DESIGN.md and get started with the implementation
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): the fallback-vs-parallel efficiency rationale
+from Prompt #11 was added to DESIGN.md's Scope section. Implementation of
+the full pipeline began: project skeleton, src/vdl/ package (errors,
+models, config, text_match, matching, acquisition, audio, transcription,
+refinement, frames, ocr, visual_refinement, pipeline, cli), unit tests
+(mocked external dependencies) and integration tests (real ffmpeg/ffprobe
+against a locally-generated fixture video).
+
+--------------------------------------------------------------------------------
+Prompt #13
+--------------------------------------------------------------------------------
+Purpose: Extended the prompt-logging policy from Prompt #3 — clarified
+that every prompt since the last recording should be logged, not only the
+major architecture-decision ones.
+
+Exact prompt:
+"""
+include all subprompts in prompts.txt as well
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): all prompts given since Prompt #3 — including
+clarifying questions, answers to assistant questions, and confirmations,
+not only standalone architecture decisions — are recorded in prompt.txt.
+Prompts #4 through #13 were added to reflect this.
+
+================================================================================

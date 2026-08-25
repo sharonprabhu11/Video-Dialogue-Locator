@@ -1,0 +1,33 @@
+[project]
+name = "vdl"
+version = "0.1.0"
+description = "Locate the exact frame/timestamp where a target dialogue first appears in a video, via speech-to-text (primary) and OCR (fallback)."
+requires-python = ">=3.10"
+dependencies = [
+    "yt-dlp>=2024.1.1",
+    "faster-whisper>=1.0.0",
+    "pytesseract>=0.3.10",
+    "opencv-python-headless>=4.9.0",
+    "numpy>=1.26.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+vdl = "vdl.cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: exercises real external tools (ffmpeg/yt-dlp/ASR model/tesseract); requires network and/or system binaries",
+]
