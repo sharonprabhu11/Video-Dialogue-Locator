@@ -18,8 +18,22 @@ from vdl.models import AcquiredVideo
 
 logger = logging.getLogger("vdl.acquisition")
 
+# Worst video + worst audio (falling back to a single worst combined
+# format) rather than best: ASR (the primary pipeline) doesn't need video
+# quality at all, and frame extraction only ever needs one still frame, not
+# a high-bitrate stream. Measured against the real target video, this cut
+# the download from an estimated ~1GB (best quality) to 122MB (see
+# prompt.txt) with no effect on correctness. Deliberately NOT "bestaudio"
+# alone: on a source that offers separate audio-only streams, that would
+# yield a file with no video track at all, breaking the frame-extraction
+# step that always has to run regardless of which pipeline (ASR or OCR)
+# resolves the match.
+DEFAULT_FORMAT_SELECTOR = "wv*+wa/w"
 
-def acquire_video(url: str, workdir: Path, yt_dlp_bin: str = "yt-dlp") -> AcquiredVideo:
+
+def acquire_video(
+    url: str, workdir: Path, yt_dlp_bin: str = "yt-dlp", format_selector: str = DEFAULT_FORMAT_SELECTOR
+) -> AcquiredVideo:
     """Download the given URL to workdir and return its measured metadata.
 
     Raises AcquisitionError if the URL can't be resolved/downloaded, or
@@ -28,9 +42,9 @@ def acquire_video(url: str, workdir: Path, yt_dlp_bin: str = "yt-dlp") -> Acquir
     workdir.mkdir(parents=True, exist_ok=True)
     output_template = str(workdir / "source.%(ext)s")
 
-    logger.info("acquiring video: %s", url)
+    logger.info("acquiring video: %s (format=%s)", url, format_selector)
     result = subprocess.run(
-        [yt_dlp_bin, "--no-warnings", "-o", output_template, "-f", "bv*+ba/b", url],
+        [yt_dlp_bin, "--no-warnings", "-o", output_template, "-f", format_selector, url],
         capture_output=True,
         text=True,
     )

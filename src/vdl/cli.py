@@ -12,6 +12,7 @@ import sys
 from dataclasses import asdict
 
 from vdl.config import MatchConfig, OCRConfig, PipelineConfig, RefineConfig
+from vdl.acquisition import DEFAULT_FORMAT_SELECTOR
 from vdl.pipeline import locate_dialogue
 
 
@@ -28,6 +29,12 @@ def build_parser() -> argparse.ArgumentParser:
     locate.add_argument("--match-threshold", type=float, default=0.80, help="ASR fuzzy match threshold, 0..1.")
     locate.add_argument("--ocr-threshold", type=float, default=0.65, help="OCR fuzzy match threshold, 0..1.")
     locate.add_argument("--scene-threshold", type=float, default=0.4, help="ffmpeg scene-change sensitivity, 0..1.")
+    locate.add_argument(
+        "--video-format", default=DEFAULT_FORMAT_SELECTOR,
+        help="yt-dlp format selector for acquisition. Default favors download speed "
+             "(ASR doesn't need video quality); raise it for a higher-quality output "
+             "frame image or better OCR-fallback fidelity.",
+    )
     locate.add_argument("--no-ocr", action="store_true", help="Disable the OCR fallback pipeline.")
     locate.add_argument("--vad-snap", action="store_true", help="Enable the optional ASR onset VAD refinement.")
     locate.add_argument("-v", "--verbose", action="store_true", help="Enable DEBUG logging.")
@@ -48,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = PipelineConfig(
         asr_model_name=args.asr_model,
         asr_device=args.asr_device,
+        video_format=args.video_format,
         match=MatchConfig(match_threshold=args.match_threshold),
         refine=RefineConfig(use_vad_snap=args.vad_snap),
         ocr=OCRConfig(match_threshold=args.ocr_threshold, scene_change_threshold=args.scene_threshold),

@@ -100,3 +100,41 @@ def test_acquire_video_raises_when_no_output_file(tmp_path):
     with patch("vdl.acquisition.subprocess.run", return_value=_completed(returncode=0)):
         with pytest.raises(AcquisitionError):
             acquire_video("https://example.com/video", tmp_path)
+
+
+def test_acquire_video_uses_low_cost_format_by_default(tmp_path):
+    seen_commands = []
+
+    def fake_run(cmd, capture_output, text):
+        seen_commands.append(cmd)
+        if cmd[0] == "yt-dlp":
+            (tmp_path / "source.mp4").write_bytes(b"fake")
+            return _completed(returncode=0)
+        return _completed(stdout=_ffprobe_json())
+
+    with patch("vdl.acquisition.subprocess.run", side_effect=fake_run):
+        acquire_video("https://example.com/video", tmp_path)
+
+    yt_dlp_cmd = seen_commands[0]
+    assert "-f" in yt_dlp_cmd
+    format_arg = yt_dlp_cmd[yt_dlp_cmd.index("-f") + 1]
+    assert format_arg == "wv*+wa/w"
+    assert "bestaudio" not in format_arg  # would risk a video-less file; frame extraction always needs video
+
+
+def test_acquire_video_respects_custom_format_selector(tmp_path):
+    seen_commands = []
+
+    def fake_run(cmd, capture_output, text):
+        seen_commands.append(cmd)
+        if cmd[0] == "yt-dlp":
+            (tmp_path / "source.mp4").write_bytes(b"fake")
+            return _completed(returncode=0)
+        return _completed(stdout=_ffprobe_json())
+
+    with patch("vdl.acquisition.subprocess.run", side_effect=fake_run):
+        acquire_video("https://example.com/video", tmp_path, format_selector="bv*+ba/b")
+
+    yt_dlp_cmd = seen_commands[0]
+    format_arg = yt_dlp_cmd[yt_dlp_cmd.index("-f") + 1]
+    assert format_arg == "bv*+ba/b"

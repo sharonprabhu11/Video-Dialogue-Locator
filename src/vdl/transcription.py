@@ -47,9 +47,18 @@ def transcribe(audio: AudioAsset, model_name: str, device: str = "cpu") -> Trans
 def _run_model(audio: AudioAsset, model_name: str, device: str):
     """Thin seam over the faster-whisper library, isolated so tests can
     monkeypatch this single function instead of loading a real model.
+
+    compute_type is set explicitly per device rather than left to
+    ctranslate2's auto-inference: on CPU, the model's native float16 weights
+    aren't efficiently supported and silently fall back to float32 (visibly
+    slower, confirmed against the real target video — see prompt.txt);
+    int8 avoids that fallback with negligible accuracy loss for this use
+    case. On CUDA, float16 is the standard fast choice and doesn't hit the
+    same fallback.
     """
     from faster_whisper import WhisperModel  # imported lazily: heavy, ML-only dependency
 
-    model = WhisperModel(model_name, device=device)
+    compute_type = "int8" if device == "cpu" else "float16"
+    model = WhisperModel(model_name, device=device, compute_type=compute_type)
     segments, _info = model.transcribe(str(audio.path), word_timestamps=True)
     return list(segments)
