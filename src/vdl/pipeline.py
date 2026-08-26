@@ -27,7 +27,11 @@ def locate_dialogue(url: str, target_text: str, cfg: PipelineConfig | None = Non
         with tempfile.TemporaryDirectory(prefix="vdl_") as workdir_str:
             workdir = Path(workdir_str)
 
-            video = acquisition.acquire_video(url, workdir / "video", format_selector=cfg.video_format)
+            cache_dir = Path(cfg.download_cache_dir) if cfg.download_cache_dir else None
+            video = acquisition.acquire_video(
+                url, workdir / "video", format_selector=cfg.video_format,
+                cache_dir=cache_dir, concurrent_fragments=cfg.concurrent_fragments,
+            )
             audio_asset = audio.extract_audio(video, workdir / "audio")
 
             transcript = transcription.transcribe(audio_asset, cfg.asr_model_name, cfg.asr_device)

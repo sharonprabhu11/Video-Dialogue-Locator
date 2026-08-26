@@ -8,6 +8,7 @@ whatever fps/container the evaluator's substituted video happens to use.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import subprocess
@@ -33,33 +34,51 @@ logger = logging.getLogger("vdl.acquisition")
 # frame-extraction step that always has to run regardless of which
 # pipeline (ASR or OCR) resolves the match.
 DEFAULT_FORMAT_SELECTOR = "wv*[height>=240]+wa/w[height>=240]/bv*+ba/b"
+DEFAULT_CONCURRENT_FRAGMENTS = 8
 
 
 def acquire_video(
-    url: str, workdir: Path, yt_dlp_bin: str = "yt-dlp", format_selector: str = DEFAULT_FORMAT_SELECTOR
+    url: str,
+    workdir: Path,
+    yt_dlp_bin: str = "yt-dlp",
+    format_selector: str = DEFAULT_FORMAT_SELECTOR,
+    cache_dir: Path | None = None,
+    concurrent_fragments: int = DEFAULT_CONCURRENT_FRAGMENTS,
 ) -> AcquiredVideo:
-    """Download the given URL to workdir and return its measured metadata.
+    """Download the given URL and return its measured metadata.
+
+    When cache_dir is given, the downloaded file is stored there (keyed by
+    url+format_selector) instead of in workdir, and a matching cache entry
+    from a prior call is reused as-is, skipping yt-dlp entirely.
 
     Raises AcquisitionError if the URL can't be resolved/downloaded, or
     VideoProbeError if the downloaded file's stream metadata can't be read.
     """
-    workdir.mkdir(parents=True, exist_ok=True)
-    output_template = str(workdir / "source.%(ext)s")
+    download_dir = _resolve_download_dir(url, format_selector, workdir, cache_dir)
+    download_dir.mkdir(parents=True, exist_ok=True)
+    output_template = str(download_dir / "source.%(ext)s")
 
-    logger.info("acquiring video: %s (format=%s)", url, format_selector)
-    result = subprocess.run(
-        [yt_dlp_bin, "--no-warnings", "-o", output_template, "-f", format_selector, url],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise AcquisitionError(
-            f"yt-dlp failed to acquire '{url}': {result.stderr.strip()}"
+    downloaded = _find_downloaded_file(download_dir)
+    if downloaded is not None:
+        logger.info("using cached download for %s: %s", url, downloaded)
+    else:
+        logger.info("acquiring video: %s (format=%s)", url, format_selector)
+        result = subprocess.run(
+            [
+                yt_dlp_bin, "--no-warnings", "-N", str(concurrent_fragments),
+                "-o", output_template, "-f", format_selector, url,
+            ],
+            capture_output=True,
+            text=True,
         )
+        if result.returncode != 0:
+            raise AcquisitionError(
+                f"yt-dlp failed to acquire '{url}': {result.stderr.strip()}"
+            )
 
-    downloaded = _find_downloaded_file(workdir)
-    if downloaded is None:
-        raise AcquisitionError(f"yt-dlp reported success but no output file was found for '{url}'")
+        downloaded = _find_downloaded_file(download_dir)
+        if downloaded is None:
+            raise AcquisitionError(f"yt-dlp reported success but no output file was found for '{url}'")
 
     metadata = probe_video(downloaded)
     logger.info(
@@ -77,8 +96,22 @@ def acquire_video(
     )
 
 
+def _resolve_download_dir(url: str, format_selector: str, workdir: Path, cache_dir: Path | None) -> Path:
+    if cache_dir is None:
+        return workdir
+    key = hashlib.sha256(f"{url}|{format_selector}".encode()).hexdigest()[:16]
+    return Path(cache_dir) / key
+
+
 def _find_downloaded_file(workdir: Path) -> Path | None:
-    candidates = [p for p in workdir.glob("source.*") if p.is_file()]
+    # Excludes yt-dlp's own in-progress artifacts (source.mp4.part,
+    # source.mp4.part-Frag12.part, source.mp4.ytdl) so a directory left
+    # behind by an interrupted download isn't mistaken for a finished one,
+    # which matters once download_dir can be a reused cache entry.
+    candidates = [
+        p for p in workdir.glob("source.*")
+        if p.is_file() and ".part" not in p.suffixes and p.suffix != ".ytdl"
+    ]
     return candidates[0] if candidates else None
 
 

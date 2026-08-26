@@ -1,10 +1,12 @@
+import hashlib
 import json
 import subprocess
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from vdl.acquisition import acquire_video, probe_video
+from vdl.acquisition import DEFAULT_FORMAT_SELECTOR, acquire_video, probe_video
 from vdl.errors import AcquisitionError, VideoProbeError
 
 
@@ -121,6 +123,119 @@ def test_acquire_video_uses_low_cost_format_by_default(tmp_path):
     assert format_arg == "wv*[height>=240]+wa/w[height>=240]/bv*+ba/b"
     assert "bestaudio" not in format_arg  # would risk a video-less file; frame extraction always needs video
     assert format_arg.endswith("bv*+ba/b")  # falls back to BEST, not worst, when no quality floor is verifiable
+
+
+def test_acquire_video_passes_concurrency_flag(tmp_path):
+    seen_commands = []
+
+    def fake_run(cmd, capture_output, text):
+        seen_commands.append(cmd)
+        if cmd[0] == "yt-dlp":
+            (tmp_path / "source.mp4").write_bytes(b"fake")
+            return _completed(returncode=0)
+        return _completed(stdout=_ffprobe_json())
+
+    with patch("vdl.acquisition.subprocess.run", side_effect=fake_run):
+        acquire_video("https://example.com/video", tmp_path, concurrent_fragments=16)
+
+    yt_dlp_cmd = seen_commands[0]
+    assert yt_dlp_cmd[yt_dlp_cmd.index("-N") + 1] == "16"
+
+
+def test_acquire_video_populates_cache_on_miss(tmp_path):
+    cache_dir = tmp_path / "cache"
+    workdir = tmp_path / "work"
+    run_count = 0
+
+    def fake_run(cmd, capture_output, text):
+        nonlocal run_count
+        if cmd[0] == "yt-dlp":
+            run_count += 1
+            out_template = cmd[cmd.index("-o") + 1]
+            Path(out_template.replace("%(ext)s", "mp4")).write_bytes(b"fake video bytes")
+            return _completed(returncode=0)
+        return _completed(stdout=_ffprobe_json())
+
+    with patch("vdl.acquisition.subprocess.run", side_effect=fake_run):
+        video = acquire_video("https://example.com/video", workdir, cache_dir=cache_dir)
+
+    assert run_count == 1
+    assert cache_dir in video.local_path.parents
+    assert video.local_path.is_file()
+
+
+def test_acquire_video_reuses_cache_on_hit(tmp_path):
+    cache_dir = tmp_path / "cache"
+    workdir = tmp_path / "work"
+    run_count = 0
+
+    def fake_run(cmd, capture_output, text):
+        nonlocal run_count
+        if cmd[0] == "yt-dlp":
+            run_count += 1
+            out_template = cmd[cmd.index("-o") + 1]
+            Path(out_template.replace("%(ext)s", "mp4")).write_bytes(b"fake video bytes")
+            return _completed(returncode=0)
+        return _completed(stdout=_ffprobe_json())
+
+    with patch("vdl.acquisition.subprocess.run", side_effect=fake_run):
+        acquire_video("https://example.com/video", workdir, cache_dir=cache_dir)
+        acquire_video("https://example.com/video", workdir, cache_dir=cache_dir)
+
+    assert run_count == 1  # second call was a cache hit, yt-dlp never ran again
+
+
+def test_acquire_video_cache_key_includes_format_selector(tmp_path):
+    cache_dir = tmp_path / "cache"
+    workdir = tmp_path / "work"
+    run_count = 0
+
+    def fake_run(cmd, capture_output, text):
+        nonlocal run_count
+        if cmd[0] == "yt-dlp":
+            run_count += 1
+            out_template = cmd[cmd.index("-o") + 1]
+            Path(out_template.replace("%(ext)s", "mp4")).write_bytes(b"fake video bytes")
+            return _completed(returncode=0)
+        return _completed(stdout=_ffprobe_json())
+
+    with patch("vdl.acquisition.subprocess.run", side_effect=fake_run):
+        acquire_video("https://example.com/video", workdir, cache_dir=cache_dir, format_selector="bv*+ba/b")
+        acquire_video("https://example.com/video", workdir, cache_dir=cache_dir, format_selector="wv*+wa/w")
+
+    assert run_count == 2  # different format selector -> different cache entry, not a hit
+
+
+def test_acquire_video_ignores_stale_partial_download_in_cache(tmp_path):
+    cache_dir = tmp_path / "cache"
+    workdir = tmp_path / "work"
+    url = "https://example.com/video"
+
+    # Seed a directory left behind by an interrupted download: only a
+    # .part artifact, no finished source.* file. Must not be mistaken for
+    # a completed cache entry.
+    key = hashlib.sha256(f"{url}|{DEFAULT_FORMAT_SELECTOR}".encode()).hexdigest()[:16]
+    stale_dir = cache_dir / key
+    stale_dir.mkdir(parents=True)
+    (stale_dir / "source.mp4.part").write_bytes(b"incomplete")
+
+    yt_dlp_invoked = False
+
+    def fake_run(cmd, capture_output, text):
+        nonlocal yt_dlp_invoked
+        if cmd[0] == "yt-dlp":
+            yt_dlp_invoked = True
+            out_template = cmd[cmd.index("-o") + 1]
+            Path(out_template.replace("%(ext)s", "mp4")).write_bytes(b"fake video bytes")
+            return _completed(returncode=0)
+        return _completed(stdout=_ffprobe_json())
+
+    with patch("vdl.acquisition.subprocess.run", side_effect=fake_run):
+        video = acquire_video(url, workdir, cache_dir=cache_dir)
+
+    assert yt_dlp_invoked  # the stale .part must NOT have been treated as a cache hit
+    assert video.local_path.name == "source.mp4"
+    assert video.local_path.read_bytes() == b"fake video bytes"
 
 
 def test_acquire_video_respects_custom_format_selector(tmp_path):

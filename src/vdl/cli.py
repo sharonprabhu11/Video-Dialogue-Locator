@@ -36,6 +36,16 @@ def build_parser() -> argparse.ArgumentParser:
              "frame image or better OCR-fallback fidelity.",
     )
     locate.add_argument("--no-ocr", action="store_true", help="Disable the OCR fallback pipeline.")
+    locate.add_argument(
+        "--cache-dir", default=".vdl_cache",
+        help="Directory to cache downloaded source videos in, keyed by url+format. "
+             "A repeated run against the same URL/format skips the download entirely.",
+    )
+    locate.add_argument("--no-cache", action="store_true", help="Disable download caching; always fetch fresh.")
+    locate.add_argument(
+        "--concurrent-fragments", type=int, default=8,
+        help="yt-dlp fragment download concurrency (-N); speeds up fragmented (HLS/DASH) sources.",
+    )
     locate.add_argument("--vad-snap", action="store_true", help="Enable the optional ASR onset VAD refinement.")
     locate.add_argument("-v", "--verbose", action="store_true", help="Enable DEBUG logging.")
     locate.add_argument("--json", action="store_true", help="Also print the full result as JSON.")
@@ -61,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
         ocr=OCRConfig(match_threshold=args.ocr_threshold, scene_change_threshold=args.scene_threshold),
         enable_ocr_fallback=not args.no_ocr,
         out_dir=args.out_dir,
+        download_cache_dir=None if args.no_cache else args.cache_dir,
+        concurrent_fragments=args.concurrent_fragments,
     )
 
     result = locate_dialogue(args.url, args.text, cfg)

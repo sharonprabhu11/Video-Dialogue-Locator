@@ -73,6 +73,23 @@ configurable (`--video-format`) for a caller who wants a higher-quality
 output frame image or better OCR-fallback fidelity at the cost of download
 time.
 
+**Download caching and concurrency:** `acquire_video()` accepts an optional
+`cache_dir`, storing the downloaded file there keyed by
+`sha256(url + format_selector)` instead of the ephemeral per-run workdir,
+and reusing that entry on a later call instead of re-invoking yt-dlp. The
+CLI enables this by default (`--cache-dir .vdl_cache`, `--no-cache` to
+disable) since repeated runs against the same URL — the common case during
+development/testing — otherwise re-download identical bytes every time.
+Correctness is preserved because the key includes `format_selector`, so a
+different `--video-format` never serves a stale-quality cache entry; a
+directory containing only yt-dlp's in-progress artifacts (`.part`,
+`.ytdl`) is never treated as a completed entry, so an interrupted download
+doesn't poison the cache. Separately, yt-dlp is now invoked with
+`-N <concurrent_fragments>` (default 8) to download fragmented (HLS/DASH)
+streams over multiple connections, which reduced wall-clock download time
+in a real run against the target video; it's a no-op for sources served as
+a single progressive stream.
+
 ## Pipeline
 
 ```

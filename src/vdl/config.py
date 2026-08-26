@@ -55,6 +55,16 @@ class PipelineConfig:
     ocr: OCRConfig = None  # type: ignore[assignment]
     enable_ocr_fallback: bool = True
     out_dir: str = "outputs"
+    # Persists downloaded source files across runs, keyed by (url,
+    # video_format) so a repeated run against the same URL skips yt-dlp
+    # entirely instead of re-downloading. None disables caching (always
+    # download fresh). Safe by default: a cache miss behaves identically to
+    # no caching at all, and the key includes video_format so switching
+    # quality never serves a stale-quality file.
+    download_cache_dir: str | None = ".vdl_cache"
+    # yt-dlp -N: fragment download concurrency. Only helps sources served as
+    # many small fragments (HLS/DASH); harmless no-op otherwise.
+    concurrent_fragments: int = 8
 
     def __post_init__(self) -> None:
         if self.match is None:
