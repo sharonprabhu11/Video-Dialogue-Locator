@@ -1,5 +1,5 @@
 ---
-name: conventional-commits
+name: commit
 description: Split the current uncommitted changes into multiple separate git commits, each with a conventional-commit type prefix (feat/fix/perf/refactor/docs/test/chore/style/build/ci). Use when the user asks for their pending work to be committed as several commits instead of one, asks for commits "prefixed with feat/fix/chore etc.", or asks for a conventional-commit-style history.
 ---
 
