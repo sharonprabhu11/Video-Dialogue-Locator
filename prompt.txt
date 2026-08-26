@@ -409,3 +409,240 @@ not only standalone architecture decisions — are recorded in prompt.txt.
 Prompts #4 through #13 were added to reflect this.
 
 ================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #14
+--------------------------------------------------------------------------------
+Purpose: Adopted the int8 fix, kept the ASR model default unchanged, and
+asked about cloud-hosted options to speed up transcription.
+
+Exact prompt:
+"""
+Apply the int8 fix, keep small as default, i cant do anything about the GPU, is there something hosted on the cloud that i could use to make this faster?
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): applied the int8 compute_type fix to
+transcription.py; kept "small" as the default ASR model rather than
+switching to a faster/smaller one. The assistant recommended Colab/Kaggle
+free-GPU notebooks for the user's own faster iteration (not part of the
+shipped pipeline), and separately flagged a cloud-hosted managed ASR API
+as a real architecture decision not adopted without explicit sign-off.
+
+--------------------------------------------------------------------------------
+Prompt #15
+--------------------------------------------------------------------------------
+Purpose: Educational request — understand, as a newcomer to this kind of
+system, what generally makes a pipeline like this slow.
+
+Exact prompt:
+"""
+Ok so i have never done this before, help me understand the factors that make this piepline slow, what i should look out for when im building/ working on something like this in the future as well
+"""
+
+Resulting decision / outcome:
+No decision — informational. The assistant explained I/O-bound vs.
+compute-bound bottlenecks, precision/quantization, model size, CPU vs.
+GPU, cold-start vs. steady-state cost, and the general "only touch the
+data you need" principle, grounded in the real numbers observed this
+session.
+
+--------------------------------------------------------------------------------
+Prompt #16
+--------------------------------------------------------------------------------
+Purpose: Approved the proposed low-cost acquisition format change.
+
+Exact prompt:
+"""
+yes okay
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): adopted the proposed change to acquisition.py's
+default yt-dlp format selector, favoring a low-download-cost format over
+best quality. This default was later revised again after a real
+correctness regression was found (see Prompt #22 below).
+
+--------------------------------------------------------------------------------
+Prompt #17
+--------------------------------------------------------------------------------
+Purpose: Requested the implementation work be split into 3 conventional-
+commit-prefixed commits, and a reusable skill for doing this in future
+sessions.
+
+Exact prompt:
+"""
+i want 3 separate commits each beginning with either feat/bug/fix/chore etc, actually write a skill for this
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): work was split into commits using an honest
+revert/commit/reapply/commit technique (not an artificial file split) —
+chore (docs/scaffolding), feat (pipeline implementation), perf (int8 +
+acquisition-format optimizations), plus a 4th chore commit for the skill
+itself. Authored `.claude/skills/conventional-commits/SKILL.md` capturing
+this methodology for reuse.
+
+--------------------------------------------------------------------------------
+Prompt #18
+--------------------------------------------------------------------------------
+Purpose: Requested a real end-to-end run of the shipped CLI against the
+actual target URL from the problem statement.
+
+Exact prompt:
+"""
+run the whole pipeline again
+"""
+
+Resulting decision / outcome:
+No decision by itself. The real `vdl locate` CLI was run against the
+actual ok.ru URL. Early attempts hit ok.ru connection resets (correctly
+handled as structured errors); a later successful run surfaced a real
+transcription regression caused by the Prompt #16 acquisition-format
+change (see Prompt #22).
+
+--------------------------------------------------------------------------------
+Prompt #19
+--------------------------------------------------------------------------------
+Purpose: Asked whether ASR transcription can be optimized further, and why
+it's inherently slow.
+
+Exact prompt:
+"""
+can this part of the pipeline be optimised? why does transcribing take so long?
+"""
+
+Resulting decision / outcome:
+No decision — informational/exploratory. The assistant explained the
+autoregressive-decoder bottleneck and named concrete unapplied levers (VAD
+filtering, batched inference, manual chunk-parallelism), recommending VAD
+filtering as the lowest-risk next step but implementing none of them
+without further direction.
+
+--------------------------------------------------------------------------------
+Prompt #20
+--------------------------------------------------------------------------------
+Purpose: Asked why the video download specifically takes so long.
+
+Exact prompt:
+"""
+why does the downlod takr this long
+"""
+
+Resulting decision / outcome:
+No decision — informational. The assistant explained the structural
+difference between progressive and HLS-segmented downloads and how
+connection resets compound under HLS, and identified that the Prompt #16
+acquisition-format fix had shifted downloads onto a more reset-exposed
+tier for this specific host.
+
+--------------------------------------------------------------------------------
+Prompt #21
+--------------------------------------------------------------------------------
+Purpose: Comprehension check — asked the assistant to explain the full
+current pipeline to verify genuine understanding of what was implemented.
+
+Exact prompt:
+"""
+explain your current pipeline to me, i wnt to see if you hve actully understood wht i want you to implement
+"""
+
+Resulting decision / outcome:
+No decision — the assistant produced a full stage-by-stage walkthrough of
+the actual implemented code (not the original design intent), grounded in
+real function/file names, thresholds, and the concrete incidents found
+this session.
+
+--------------------------------------------------------------------------------
+Prompt #22
+--------------------------------------------------------------------------------
+Purpose: Asked whether the Prompt #16 acquisition-format change was the
+cause of a real transcription-accuracy regression observed in Prompt #18's
+run.
+
+Exact prompt:
+"""
+do you think us changing the quality has anthing to do with this?
+"""
+
+Resulting decision / outcome:
+Confirmed and fixed: the "wv*+wa/w" default had resolved to ok.ru's
+"mobile" tier — a worse, unverifiable-quality tier than the "lowest" tier
+validated earlier — and this directly caused a real misrecognition
+("rebels at" misheard as "verbels its"). Decision (user-directed, via
+continued collaboration): changed the default to
+`wv*[height>=240]+wa/w[height>=240]/bv*+ba/b` (a verified quality floor,
+falling back to BEST rather than worst when unverifiable). Documented in
+DESIGN.md, config.py, and this file.
+
+--------------------------------------------------------------------------------
+Prompt #23
+--------------------------------------------------------------------------------
+Purpose: Requested stopping the in-progress retry attempt and starting a
+clean one.
+
+Exact prompt:
+"""
+can you try fresh, stop the current run and try again
+"""
+
+Resulting decision / outcome:
+All running background retry/pipeline processes and monitors were stopped;
+a fresh retry sequence was started.
+
+--------------------------------------------------------------------------------
+Prompt #24
+--------------------------------------------------------------------------------
+Purpose: Requested reverting to the earlier "mobile" format for a quick
+unblocking attempt, to make progress against a flaky host.
+
+Exact prompt:
+"""
+revert to the previous method, mobile nd try again
+"""
+
+Resulting decision / outcome:
+Decision (user-directed, scoped): used `--video-format mobile` as an
+explicit one-off CLI override for this verification attempt only. The
+shipped default format selector (the verified-quality-or-best fix from
+Prompt #22) was deliberately left unchanged, to avoid silently
+reintroducing the known correctness regression.
+
+--------------------------------------------------------------------------------
+Prompt #25
+--------------------------------------------------------------------------------
+Purpose: Requested pausing the ongoing retry attempts against the flaky
+host.
+
+Exact prompt:
+"""
+pause it for now
+"""
+
+Resulting decision / outcome:
+All background retry loops and processes were stopped cleanly; no further
+automatic retries were run.
+
+--------------------------------------------------------------------------------
+Prompt #26
+--------------------------------------------------------------------------------
+Purpose: Established an ongoing policy to keep recording prompts going
+forward, without needing to be asked to record each one individually.
+
+Exact prompt:
+"""
+keep adding subprompts moving forward
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): from this point forward, the assistant
+proactively appends each new substantive prompt (including sub-questions
+and clarifications) to prompt.txt as the conversation proceeds, rather
+than waiting for an explicit "record this" request each time. Purely
+repetitive operational pings (e.g. duplicate "check progress" status
+checks with no new content) are excluded as non-substantive, consistent
+with the standing "don't record casual conversation" principle from
+Prompt #3 — flagged here as an assistant judgment call, reversible if the
+user wants literal 1:1 logging instead.
+
+================================================================================
