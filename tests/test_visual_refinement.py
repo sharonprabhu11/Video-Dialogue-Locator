@@ -31,6 +31,7 @@ def test_refine_finds_first_of_two_consecutive_hits():
 
     with (
         patch("vdl.visual_refinement.extract_keyframe", return_value="dummy-frame"),
+        patch("vdl.visual_refinement.has_probable_text_region", return_value=True),
         patch("vdl.visual_refinement.pytesseract.image_to_string", side_effect=ocr_outputs),
     ):
         refined = refine_frame_boundary(_candidate(window), video, _TARGET, OCRConfig())
@@ -51,6 +52,7 @@ def test_refine_falls_back_when_no_stable_two_frame_run():
 
     with (
         patch("vdl.visual_refinement.extract_keyframe", return_value="dummy-frame"),
+        patch("vdl.visual_refinement.has_probable_text_region", return_value=True),
         patch("vdl.visual_refinement.pytesseract.image_to_string", side_effect=ocr_outputs),
     ):
         refined = refine_frame_boundary(_candidate(window, score=0.9), video, _TARGET, OCRConfig())
@@ -68,3 +70,19 @@ def test_refine_treats_undecodable_frame_as_a_miss():
 
     assert refined.onset_s == window.start_s
     assert mock_extract.called
+
+
+def test_refine_skips_ocr_call_when_prefilter_rejects_frame():
+    video = _video(fps=10.0)
+    window = TimeWindow(start_s=0.0, end_s=0.3)  # 4 sampled instants at fps=10: i=0..3
+
+    with (
+        patch("vdl.visual_refinement.extract_keyframe", return_value="dummy-frame"),
+        patch("vdl.visual_refinement.has_probable_text_region", return_value=False) as mock_prefilter,
+        patch("vdl.visual_refinement.pytesseract.image_to_string") as mock_ocr,
+    ):
+        refined = refine_frame_boundary(_candidate(window), video, _TARGET, OCRConfig())
+
+    assert refined.onset_s == window.start_s  # no stable run found -- every frame rejected pre-OCR
+    assert mock_prefilter.called
+    mock_ocr.assert_not_called()  # the whole point: reject-before-OCR, never pay for a Tesseract call

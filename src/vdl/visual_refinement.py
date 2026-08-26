@@ -18,7 +18,7 @@ import pytesseract
 
 from vdl.config import OCRConfig
 from vdl.models import AcquiredVideo, OCRCandidate, RefinedTime
-from vdl.ocr import extract_keyframe
+from vdl.ocr import extract_keyframe, has_probable_text_region
 from vdl.text_match import similarity
 
 logger = logging.getLogger("vdl.visual_refinement")
@@ -58,7 +58,7 @@ def _is_text_match(
     video: AcquiredVideo, t: float, target_text: str, cfg: OCRConfig, ffmpeg_bin: str
 ) -> bool:
     frame = extract_keyframe(video, t, ffmpeg_bin)
-    if frame is None:
+    if frame is None or not has_probable_text_region(frame):
         return False
     text = pytesseract.image_to_string(frame, lang=cfg.ocr_lang).strip()
     return bool(text) and similarity(text, target_text) >= cfg.match_threshold

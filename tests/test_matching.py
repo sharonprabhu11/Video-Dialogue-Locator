@@ -1,6 +1,6 @@
 from vdl.config import MatchConfig
-from vdl.matching import find_dialogue
-from vdl.models import Transcript, TranscriptSegment, Word
+from vdl.matching import dedupe_by_occurrence, find_dialogue
+from vdl.models import MatchCandidate, Transcript, TranscriptSegment, Word
 
 
 def _word(text: str, start: float, end: float) -> Word:
@@ -113,3 +113,55 @@ def test_empty_target_text_returns_empty_list():
     seg = TranscriptSegment(start_s=0.0, end_s=0.5, text="hello", words=words)
     transcript = _transcript(seg)
     assert find_dialogue(transcript, "", MatchConfig()) == []
+
+
+def _candidate(text: str, score: float, start_s: float, span: tuple[int, int]) -> MatchCandidate:
+    return MatchCandidate(matched_text=text, score=score, start_s=start_s, end_s=start_s + 1.0, word_span=span)
+
+
+def test_dedupe_by_occurrence_empty_list():
+    assert dedupe_by_occurrence([]) == []
+
+
+def test_dedupe_by_occurrence_single_candidate_unchanged():
+    c = _candidate("x", 0.9, 1.0, (0, 5))
+    assert dedupe_by_occurrence([c]) == [c]
+
+
+def test_dedupe_by_occurrence_merges_overlapping_spans_keeping_best_score():
+    low = _candidate("low", 0.80, 1.0, (0, 6))
+    high = _candidate("high", 0.95, 1.2, (1, 6))  # overlaps [0,6) at indices 1-5
+    result = dedupe_by_occurrence([low, high])
+
+    assert len(result) == 1
+    assert result[0] is high  # highest-scoring candidate in the cluster wins
+
+
+def test_dedupe_by_occurrence_keeps_non_overlapping_spans_separate():
+    first = _candidate("first", 0.98, 100.0, (500, 505))  # deliberately out of chronological order
+    second = _candidate("second", 0.80, 5.0, (0, 5))
+    result = dedupe_by_occurrence([first, second])
+
+    assert len(result) == 2
+    assert [c.start_s for c in result] == [5.0, 100.0]  # sorted chronologically, not by input order or score
+
+
+def test_dedupe_by_occurrence_real_six_candidate_example():
+    # Real candidates from one true spoken occurrence (see prompt.txt /
+    # DESIGN.md): the target_len +/-1 window search produced 6 overlapping-
+    # span candidates, with start_s spread across 4.4s because the span
+    # extended one word left pulled in a word from an unrelated prior
+    # sentence, across a real speech pause.
+    candidates = [
+        _candidate("My mind rebels at stagnation", 1.0, 324.52, (290, 295)),
+        _candidate("mind rebels at stagnation", 0.943, 325.38, (291, 295)),
+        _candidate("time My mind rebels at stagnation", 0.918, 320.96, (289, 295)),
+        _candidate("My mind rebels at stagnation Give", 0.918, 324.52, (290, 296)),
+        _candidate("mind rebels at stagnation Give", 0.862, 325.38, (291, 296)),
+        _candidate("mind rebels at stagnation Give me", 0.820, 325.38, (291, 297)),
+    ]
+    result = dedupe_by_occurrence(candidates)
+
+    assert len(result) == 1
+    assert result[0].matched_text == "My mind rebels at stagnation"
+    assert result[0].start_s == 324.52  # the correct onset, not the span-extended 320.96

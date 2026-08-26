@@ -67,3 +67,54 @@ def _to_candidate(
         end_s=window_words[-1].end_s,
         word_span=span,
     )
+
+
+def dedupe_by_occurrence(candidates: list[MatchCandidate]) -> list[MatchCandidate]:
+    """Collapse window-size-delta duplicates of the same utterance into one
+    representative per distinct occurrence, sorted chronologically.
+
+    find_dialogue() tries window sizes target_len-1/0/+1 (see
+    _WINDOW_SIZE_DELTAS above), so a single true occurrence is very often
+    returned as several overlapping candidates -- trimmed or extended by one
+    word at either boundary. Real evidence this matters: a single spoken
+    occurrence produced 6 candidates whose word_span all overlapped the
+    canonical (delta=0) span, but whose start_s values ranged across 4.4
+    seconds, because the +1-word-extended variant happened to pull in a word
+    from the end of an unrelated prior sentence across a real speech pause.
+    A seconds-based proximity threshold cannot safely separate "same
+    occurrence, wide time spread due to an adjacent pause" from "genuinely
+    different occurrence, narrow time gap" -- so grouping instead uses
+    word_span overlap, which is exact: every delta-generated variant of one
+    occurrence is guaranteed (by construction, since only one word is
+    trimmed/added at a boundary) to share indices with the canonical span.
+    Two truly distinct occurrences only risk overlapping if they fall within
+    one target-phrase-length of each other in the word stream -- essentially
+    back-to-back stutter repetition, a rare edge case not worth a special
+    case without evidence it occurs.
+
+    Within a cluster, the representative is the highest-scoring candidate:
+    the tightest-fitting window is the one least contaminated by a spurious
+    adjacent word, so it's also the most accurate estimate of that
+    occurrence's true start_s (confirmed against the real 6-candidate
+    example above: the highest-scoring candidate's start_s was the
+    genuinely correct onset; the lowest-scoring, span-extended one was
+    several seconds off, still mid-way through the *previous* sentence).
+    """
+    if not candidates:
+        return []
+
+    by_span_start = sorted(candidates, key=lambda c: c.word_span[0])
+    clusters: list[list[MatchCandidate]] = [[by_span_start[0]]]
+    cluster_end = by_span_start[0].word_span[1]
+
+    for candidate in by_span_start[1:]:
+        if candidate.word_span[0] < cluster_end:
+            clusters[-1].append(candidate)
+            cluster_end = max(cluster_end, candidate.word_span[1])
+        else:
+            clusters.append([candidate])
+            cluster_end = candidate.word_span[1]
+
+    representatives = [max(cluster, key=lambda c: c.score) for cluster in clusters]
+    representatives.sort(key=lambda c: c.start_s)
+    return representatives

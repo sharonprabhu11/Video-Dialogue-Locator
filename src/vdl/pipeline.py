@@ -65,16 +65,27 @@ def _resolve_asr(
     if not candidates:
         return None
 
-    decision = _classify_candidates([c.score for c in candidates], cfg.match.ambiguous_margin)
+    # Collapse window-size-delta duplicates of the same utterance before
+    # judging ambiguity or picking a winner (matching.dedupe_by_occurrence),
+    # so near-duplicate candidates for one true occurrence can't masquerade
+    # as two competing occurrences.
+    occurrences = matching.dedupe_by_occurrence(candidates)
+    scores_desc = sorted((c.score for c in occurrences), reverse=True)
+
+    decision = _classify_candidates(scores_desc, cfg.match.ambiguous_margin)
     if decision == "ambiguous":
         return PipelineResult(
-            status="ambiguous", source="asr", asr_candidates=candidates, warnings=warnings,
-            confidence=candidates[0].score,
+            status="ambiguous", source="asr", asr_candidates=occurrences, warnings=warnings,
+            confidence=scores_desc[0],
         )
 
-    best = candidates[0]
+    # occurrences is sorted chronologically (dedupe_by_occurrence), so [0] is
+    # the earliest valid occurrence -- required by the problem statement's
+    # "first appears" -- never the highest-scoring one if that's a later,
+    # distinct occurrence.
+    best = occurrences[0]
     refined = refinement.refine_onset(best, audio_asset, cfg.refine)
-    return _build_ok_result(video, refined, best.matched_text, "asr", candidates, [], cfg, warnings)
+    return _build_ok_result(video, refined, best.matched_text, "asr", occurrences, [], cfg, warnings)
 
 
 def _run_ocr_pipeline(video, target_text: str, cfg: PipelineConfig) -> list[OCRCandidate]:
@@ -99,7 +110,11 @@ def _resolve_ocr(
             warnings=warnings, confidence=candidates[0].score,
         )
 
-    best = candidates[0]
+    # OCR candidates are already one-per-shot (find_onscreen_dialogue never
+    # produces window-delta duplicates the way ASR matching does), so no
+    # dedup step is needed here -- just pick the earliest valid shot rather
+    # than the highest-scoring one, same reasoning as the ASR path.
+    best = min(candidates, key=lambda c: c.window.start_s)
     refined = visual_refinement.refine_frame_boundary(best, video, target_text, cfg.ocr)
     return _build_ok_result(video, refined, best.matched_text, "ocr", asr_candidates, candidates, cfg, warnings)
 

@@ -1,5 +1,12 @@
 # Design: Video Dialogue Locator
 
+This is the technical architecture reference — component responsibilities,
+interfaces, data structures, and the reasoning behind each choice. See
+`APPROACH.md` for the narrative of how this design was actually arrived
+at: initial interpretation, what was discovered by inspecting the real
+video, alternatives considered and rejected, and the points where a
+decision was reversed after being challenged.
+
 ## Scope
 
 The problem statement itself describes a visual event ("an **on-screen**
@@ -303,7 +310,7 @@ The normalization and scoring rules are defined **once**, in `text_match.py`, an
 - **Whitespace** — collapsed/stripped on both sides.
 - **Transcription/OCR errors** — never exact string equality; fuzzy similarity score against a configurable threshold.
 - **Split across segments (ASR)** — solved structurally by matching over the flattened word list rather than per-segment text.
-- **Multiple occurrences** — the full transcript (ASR) or full set of sampled windows (OCR) is scanned; every candidate above threshold is kept, not just the first. One dominant candidate → `status="ok"`; several close-scoring ones → `status="ambiguous"`, all returned.
+- **Multiple occurrences** — the full transcript (ASR) or full set of sampled windows (OCR) is scanned; every candidate above threshold is kept, not just the first. Before ranking, ASR candidates are deduplicated by `matching.dedupe_by_occurrence()` (see §10) since the `target_len±1` window-size search routinely returns several overlapping candidates for one true utterance. One dominant *occurrence* → `status="ok"`, resolved to the **chronologically earliest** valid occurrence (never the highest-scoring one, if that's a distinct later occurrence — the problem statement requires the first appearance); several close-scoring distinct occurrences → `status="ambiguous"`, all returned.
 
 OCR-specific additions on top of the shared logic:
 - OCR misreads are noisier than ASR misrecognitions (font, contrast, motion blur), so the OCR match threshold is configured more leniently than the ASR one.
@@ -319,7 +326,7 @@ This section supersedes the original "binary search across all frames" idea from
 
 **Global localization (replaces fixed-interval coarse sampling):**
 - **Shot-boundary / keyframe sampling.** `ffmpeg`'s built-in scene-change filter (`select='gt(scene,X)'`) segments the video into shots; one keyframe is decoded per shot. This is not a search-algorithm optimization, it's a better sampling strategy: a text/dialogue card is almost always its own static shot, so this samples where the actual structure of the video suggests content changes, instead of a blind fixed time interval that might straddle or miss a short card entirely.
-- **Cascade prefilter.** Before running full OCR on a keyframe, a cheap "does this frame plausibly contain a text region" check (edge-density / MSER via OpenCV) rejects the vast majority of shots with no chance of containing text. Full OCR — the expensive step — only runs on frames that pass this filter. Same principle as a Viola-Jones cascade: reject cheap negatives fast, spend the expensive step only on plausible positives.
+- **Cascade prefilter.** Before running full OCR on a keyframe, a cheap "does this frame plausibly contain a text region" check (edge-density / MSER via OpenCV) rejects the vast majority of shots with no chance of containing text. Full OCR — the expensive step — only runs on frames that pass this filter. Same principle as a Viola-Jones cascade: reject cheap negatives fast, spend the expensive step only on plausible positives. This prefilter is applied at **both** OCR call sites — the coarse per-shot pass here, and the fine-grained per-frame linear scan in local refinement below (`visual_refinement.py`) — since the second pass calls OCR once per real frame in the winning shot and would otherwise pay full Tesseract cost on every frame regardless of whether it plausibly contains text.
 - Together, these attack the actual bottleneck (frame count × OCR cost across a potentially 50,000+ frame video) far more directly than any search-order cleverness over a fixed sampling grid would.
 
 **Local boundary refinement, per pipeline:**
@@ -338,6 +345,18 @@ This section supersedes the original "binary search across all frames" idea from
 - `"error"` — an upstream stage failed.
 
 `source` records which pipeline actually resolved the answer. `asr_candidates` and `ocr_candidates` are both always populated with whatever was considered (empty list if that pipeline wasn't triggered), so the result is fully auditable regardless of which path won.
+
+**Occurrence deduplication and first-occurrence selection (fix, evidence-based):** an earlier version selected the single highest-scoring candidate globally and classified ambiguity over the raw candidate list. Both were real bugs, found via architecture audit and confirmed against a real run against the target video:
+
+- `matching.find_dialogue()`'s `target_len±1` window-size search returned **6 overlapping candidates for one true spoken occurrence**, with `start_s` spread across 4.4 seconds — the span-extended-left variant pulled in a word ("time") from the end of an unrelated prior sentence, across a real speech pause. The top two raw scores (1.0 vs. 0.943) differed by only 0.057 — 0.007 above the default 0.05 `ambiguous_margin` — one narrowly-averted false `"ambiguous"` away from reporting one occurrence as two.
+- Selecting the highest-scoring candidate globally, rather than the chronologically first valid one, meant a later occurrence with a cleaner ASR reading could silently outrank the true first occurrence — directly contradicting the problem statement's "first appears" requirement.
+
+Fix: `matching.dedupe_by_occurrence()` groups candidates by **`word_span` overlap** (not a seconds-based proximity threshold) before either ambiguity is judged or a winner is picked:
+- Every duplicate of one true occurrence is guaranteed, by construction, to share word-index overlap with the canonical (`delta=0`) span, since the window search only ever trims/extends one word at a boundary — this is exact, not tuned. A seconds-based threshold was rejected specifically because it can't safely separate "same occurrence, wide time spread from an adjacent pause" from "different occurrence, narrow time gap" — the 4.4-second example above is real evidence a fixed-seconds cutoff would misclassify either way depending on which side of it the cutoff falls.
+- Within a cluster, the **highest-scoring** candidate becomes that occurrence's representative (least contaminated by a spurious adjacent word — confirmed against the real example: the top-scoring candidate's `start_s` was the correct onset, the span-extended one was several seconds into the *wrong* sentence).
+- Across clusters, the representative list is sorted **chronologically**; the pipeline selects the earliest one as the answer when not ambiguous, and judges ambiguity across these deduplicated representatives, not raw candidates.
+
+The OCR path needs no deduplication step — `ocr.find_onscreen_dialogue()` produces at most one candidate per shot, so candidates are already distinct by construction — but uses the same earliest-not-highest-score selection rule for consistency.
 
 ## 11. Logging and error handling
 

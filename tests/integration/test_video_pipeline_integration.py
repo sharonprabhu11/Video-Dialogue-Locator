@@ -79,6 +79,63 @@ def test_extract_audio_produces_valid_wav(tmp_path, synthetic_video):
     assert real_duration == pytest.approx(3.0, abs=0.2)
 
 
+@pytest.fixture
+def vfr_video(tmp_path):
+    """A real, genuinely variable-frame-rate video: a 30fps source with an
+    irregular frame-keep pattern (select filter) muxed with -vsync vfr, so
+    frame spacing is actually non-uniform rather than merely mislabeled.
+
+    Confirmed live against this exact command: ffprobe reports
+    r_frame_rate=30/1 (nominal) vs. avg_frame_rate ~= 12.4 (actual) -- a
+    >1% gap, which is exactly what probe_video's is_vfr detection checks.
+    """
+    path = tmp_path / "vfr.mp4"
+    subprocess.run(
+        [
+            FFMPEG, "-y",
+            "-f", "lavfi", "-i", "testsrc=duration=3:size=320x240:rate=30",
+            "-vf", r"select='if(eq(mod(n\,5)\,0)+eq(mod(n\,5)\,1)\,1\,0)'",
+            "-vsync", "vfr", "-pix_fmt", "yuv420p", str(path),
+        ],
+        capture_output=True, check=True,
+    )
+    return path
+
+
+@requires_ffmpeg
+def test_probe_video_detects_real_vfr_content(vfr_video):
+    meta = acquisition.probe_video(vfr_video, ffprobe_bin=FFPROBE)
+    assert meta.is_vfr is True
+
+
+@requires_ffmpeg
+def test_extract_frame_produces_valid_image_from_real_vfr_video(tmp_path, vfr_video):
+    """No VFR-specific branch exists in extract_frame -- it always seeks by
+    real timestamp (-ss before -i) and never trusts arithmetic frame-index
+    for extraction itself, so the same code path is expected to already be
+    correct for VFR content. This is the first real (non-mocked) check of
+    that claim: DESIGN.md discusses VFR handling, but no prior test -- unit
+    or integration -- ever exercised a file with actually non-uniform frame
+    spacing.
+    """
+    from vdl.models import AcquiredVideo
+
+    meta = acquisition.probe_video(vfr_video, ffprobe_bin=FFPROBE)
+    assert meta.is_vfr is True  # sanity: this fixture must actually be VFR, or the test proves nothing
+
+    video = AcquiredVideo(
+        source_url="local", local_path=vfr_video, duration_s=meta.duration_s,
+        fps=meta.fps, frame_count=meta.frame_count, is_vfr=True,
+    )
+    refined = RefinedTime(onset_s=1.5, method="asr_word_timestamp", confidence=0.9)
+
+    result = extract_frame(video, refined, tmp_path / "frames_out", ffmpeg_bin=FFMPEG)
+
+    image = cv2.imread(str(result.image_path))
+    assert image is not None
+    assert image.shape[0] > 0 and image.shape[1] > 0
+
+
 @requires_ffmpeg
 def test_extract_frame_produces_readable_image(tmp_path, synthetic_video):
     from vdl.models import AcquiredVideo
