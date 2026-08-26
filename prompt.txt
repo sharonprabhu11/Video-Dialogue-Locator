@@ -461,30 +461,11 @@ Resulting decision / outcome:
 Decision (user-directed): adopted the proposed change to acquisition.py's
 default yt-dlp format selector, favoring a low-download-cost format over
 best quality. This default was later revised again after a real
-correctness regression was found (see Prompt #22 below).
+correctness regression was found (see Prompt #21 below).
+
 
 --------------------------------------------------------------------------------
 Prompt #17
---------------------------------------------------------------------------------
-Purpose: Requested the implementation work be split into 3 conventional-
-commit-prefixed commits, and a reusable skill for doing this in future
-sessions.
-
-Exact prompt:
-"""
-i want 3 separate commits each beginning with either feat/bug/fix/chore etc, actually write a skill for this
-"""
-
-Resulting decision / outcome:
-Decision (user-directed): work was split into commits using an honest
-revert/commit/reapply/commit technique (not an artificial file split) —
-chore (docs/scaffolding), feat (pipeline implementation), perf (int8 +
-acquisition-format optimizations), plus a 4th chore commit for the skill
-itself. Authored `.claude/skills/conventional-commits/SKILL.md` capturing
-this methodology for reuse.
-
---------------------------------------------------------------------------------
-Prompt #18
 --------------------------------------------------------------------------------
 Purpose: Requested a real end-to-end run of the shipped CLI against the
 actual target URL from the problem statement.
@@ -499,10 +480,10 @@ No decision by itself. The real `vdl locate` CLI was run against the
 actual ok.ru URL. Early attempts hit ok.ru connection resets (correctly
 handled as structured errors); a later successful run surfaced a real
 transcription regression caused by the Prompt #16 acquisition-format
-change (see Prompt #22).
+change (see Prompt #21).
 
 --------------------------------------------------------------------------------
-Prompt #19
+Prompt #18
 --------------------------------------------------------------------------------
 Purpose: Asked whether ASR transcription can be optimized further, and why
 it's inherently slow.
@@ -520,7 +501,7 @@ filtering as the lowest-risk next step but implementing none of them
 without further direction.
 
 --------------------------------------------------------------------------------
-Prompt #20
+Prompt #19
 --------------------------------------------------------------------------------
 Purpose: Asked why the video download specifically takes so long.
 
@@ -537,7 +518,7 @@ acquisition-format fix had shifted downloads onto a more reset-exposed
 tier for this specific host.
 
 --------------------------------------------------------------------------------
-Prompt #21
+Prompt #20
 --------------------------------------------------------------------------------
 Purpose: Comprehension check — asked the assistant to explain the full
 current pipeline to verify genuine understanding of what was implemented.
@@ -554,10 +535,10 @@ real function/file names, thresholds, and the concrete incidents found
 this session.
 
 --------------------------------------------------------------------------------
-Prompt #22
+Prompt #21
 --------------------------------------------------------------------------------
 Purpose: Asked whether the Prompt #16 acquisition-format change was the
-cause of a real transcription-accuracy regression observed in Prompt #18's
+cause of a real transcription-accuracy regression observed in Prompt #17's
 run.
 
 Exact prompt:
@@ -576,7 +557,7 @@ falling back to BEST rather than worst when unverifiable). Documented in
 DESIGN.md, config.py, and this file.
 
 --------------------------------------------------------------------------------
-Prompt #23
+Prompt #22
 --------------------------------------------------------------------------------
 Purpose: Requested stopping the in-progress retry attempt and starting a
 clean one.
@@ -591,7 +572,7 @@ All running background retry/pipeline processes and monitors were stopped;
 a fresh retry sequence was started.
 
 --------------------------------------------------------------------------------
-Prompt #24
+Prompt #23
 --------------------------------------------------------------------------------
 Purpose: Requested reverting to the earlier "mobile" format for a quick
 unblocking attempt, to make progress against a flaky host.
@@ -605,11 +586,11 @@ Resulting decision / outcome:
 Decision (user-directed, scoped): used `--video-format mobile` as an
 explicit one-off CLI override for this verification attempt only. The
 shipped default format selector (the verified-quality-or-best fix from
-Prompt #22) was deliberately left unchanged, to avoid silently
+Prompt #21) was deliberately left unchanged, to avoid silently
 reintroducing the known correctness regression.
 
 --------------------------------------------------------------------------------
-Prompt #25
+Prompt #24
 --------------------------------------------------------------------------------
 Purpose: Requested pausing the ongoing retry attempts against the flaky
 host.
@@ -624,7 +605,7 @@ All background retry loops and processes were stopped cleanly; no further
 automatic retries were run.
 
 --------------------------------------------------------------------------------
-Prompt #26
+Prompt #25
 --------------------------------------------------------------------------------
 Purpose: Established an ongoing policy to keep recording prompts going
 forward, without needing to be asked to record each one individually.
@@ -646,3 +627,796 @@ Prompt #3 — flagged here as an assistant judgment call, reversible if the
 user wants literal 1:1 logging instead.
 
 ================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #26
+--------------------------------------------------------------------------------
+Purpose: Kicked off a new session by asking to run the pipeline.
+
+Exact prompt:
+"""
+run pipeline
+"""
+
+Resulting decision / outcome:
+No decision by itself. The assistant explored the repo, found ffmpeg was
+not installed (blocking the ASR pipeline entirely), and asked whether to
+install it via sudo apt-get.
+
+--------------------------------------------------------------------------------
+Prompt #27
+--------------------------------------------------------------------------------
+Purpose: Answer to the assistant's question about installing ffmpeg via
+sudo — redirected toward a plain pip/venv approach instead.
+
+Exact prompt:
+"""
+bro run requierements.txt in a venv
+"""
+
+Resulting decision / outcome:
+No decision on ffmpeg itself yet. The assistant clarified there is no
+requirements.txt in this project (pyproject.toml is the equivalent) and
+confirmed the .venv/Python dependencies were already correctly installed;
+ffmpeg itself still needed a separate system-level install, which the
+assistant asked about again.
+
+--------------------------------------------------------------------------------
+Prompt #28
+--------------------------------------------------------------------------------
+Purpose: Approved installing ffmpeg via sudo.
+
+Exact prompt:
+"""
+yes, install ffmpeg
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): sudo access was not available non-interactively
+to the assistant, so the user was asked to run the install themselves;
+once confirmed installed, the assistant proceeded to run the pipeline for
+real.
+
+--------------------------------------------------------------------------------
+Prompt #29
+--------------------------------------------------------------------------------
+Purpose: Asked why a prior-looking successful run (an existing
+outputs/frame_7786.png from before this session) hadn't required a
+download, prompting an investigation into what that file actually was.
+
+Exact prompt:
+"""
+what did you do when you ran the piepline yesterday, why was i not required to download this back then?
+"""
+
+Resulting decision / outcome:
+No decision — investigative. The assistant determined the pre-existing
+frame image (192x144) did not come from a real vdl locate run at all, but
+from the integration test suite's synthetic fixture video, and that no
+real successful run against the actual target URL had happened before
+this session.
+
+================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #30
+--------------------------------------------------------------------------------
+Purpose: Asked for concrete ways to reduce the video-download time, which
+was the dominant complaint at that point in the session.
+
+Exact prompt:
+"""
+i want to reduce the download time, how do i do that? this is taking up way too much time, list possible ways to optimise that
+"""
+
+Resulting decision / outcome:
+No decision by itself. The assistant listed ranked options: caching
+downloads across runs, fetching audio-only first, parallel fragment
+downloads, and explicitly advised against lowering the quality floor
+below the already-validated >=240p, since that had already caused a real
+regression. Led to Prompt #32.
+
+--------------------------------------------------------------------------------
+Prompt #31
+--------------------------------------------------------------------------------
+Purpose: Asked what yt-dlp is and whether a more efficient tool exists.
+
+Exact prompt:
+"""
+what is yt-dlp and why are we using that particular one, is there something more effiecient
+"""
+
+Resulting decision / outcome:
+No decision — informational. The assistant explained yt-dlp is the
+standard tool for resolving arbitrary video URLs to local files across
+many sites, that no realistic alternative downloader would change the
+actual bottleneck, and that the real lever is format/quality selection
+(already tuned) plus the caching/concurrency ideas from Prompt #30.
+
+--------------------------------------------------------------------------------
+Prompt #32
+--------------------------------------------------------------------------------
+Purpose: Approved implementing two of the three optimization ideas from
+Prompt #30 (URL-keyed download caching, and concurrent fragment
+downloads); explicitly did not approve the audio-only-first idea.
+
+Exact prompt:
+"""
+1. Cache the download across runs (biggest win for you right now)
+You've re-run the same URL 3 times today, downloading the full video each time. A cache directory keyed by URL hash (checked before calling yt-dlp, populated after) would make every re-run after the first instant. This doesn't conflict with AGENTS.md's "no video-specific literals" rule — it's generic caching by URL, not hardcoding this video.
+
+2. Fetch audio-only first, video-clip only if/when needed
+ASR is the primary path and only needs audio. Right now DEFAULT_FORMAT_SELECTOR in acquisition.py:33 always pulls video+audio muxed together (wv*[height>=240]+wa/w[height>=240]/bv*+ba/b). A faster shape: download bestaudio/worstaudio alone (much smaller), run ASR to find the timestamp, then pull just a few seconds of video around that timestamp for the single frame extraction — instead of the whole video body.
+
+3. Parallel fragment downloads
+acquisition.py:47 calls yt-dlp with no concurrency flags. Adding -N 8 (--concurrent-fragments) or routing through aria2c (--downloader aria2c --downloader-args "aria2c:-x16 -s16") can speed up fragmented-stream downloads several-fold if the bottleneck is per-connection throughput rather than raw bandwidth. do 1 and 3
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): implemented URL+format-keyed download caching
+(acquire_video() gained an optional cache_dir, keyed by
+sha256(url+format_selector), enabled by default via the CLI) and
+concurrent fragment downloads (yt-dlp invoked with -N <concurrent_fragments>,
+default 8, configurable via --concurrent-fragments). Idea 2 (audio-only
+first) was explicitly not adopted. New unit tests added; DESIGN.md
+updated; full suite re-run and passing.
+
+--------------------------------------------------------------------------------
+Prompt #33
+--------------------------------------------------------------------------------
+Purpose: Requested proof that the newly-implemented caching actually
+works, by re-running and confirming the download is skipped.
+
+Exact prompt:
+"""
+re-run it and confirm caching skips the download
+"""
+
+Resulting decision / outcome:
+No new decision. Verification attempts against the original ok.ru URL hit
+repeated transient "Connection reset by peer" failures independent of the
+caching code; this was eventually confirmed against a different URL in
+Prompt #34 instead.
+
+--------------------------------------------------------------------------------
+Prompt #34
+--------------------------------------------------------------------------------
+Purpose: Provided a fresh YouTube URL and target dialogue to run against,
+after the ok.ru verification attempts kept failing on connection resets.
+
+Exact prompt:
+"""
+https://www.youtube.com/watch?v=MvXVDje91BE use this url for another run and fresh one, dialogue = "Thats the structure of almost any story"
+"""
+
+Resulting decision / outcome:
+No architecture decision. The real vdl locate CLI was run against this
+URL and succeeded (00:01:30.000, frame 2250, confidence 1.0). A second,
+identical run immediately after confirmed the caching fix from Prompt #32
+for real: download+probe took 0.18 seconds on the cache hit, versus
+multiple minutes on the first run.
+
+================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #35
+--------------------------------------------------------------------------------
+Purpose: Asked whether the machine's lack of a GPU explains the slow
+transcription time.
+
+Exact prompt:
+"""
+is this taking more time because my computer does not have the necessary gpu?
+"""
+
+Resulting decision / outcome:
+No decision — informational. The assistant confirmed no GPU/CUDA is
+present on this machine (nvidia-smi absent, no torch), and that the
+default asr_device="cpu" was already using int8 quantization, the fastest
+correct CPU precision available for this model.
+
+--------------------------------------------------------------------------------
+Prompt #36
+--------------------------------------------------------------------------------
+Purpose: Follow-up question — would a real GPU actually make ASR faster.
+
+Exact prompt:
+"""
+so say someone with a better gpu runs this, will it be faster?
+"""
+
+Resulting decision / outcome:
+No decision — informational. The assistant confirmed GPU would
+meaningfully speed up ASR specifically (transcription.py already selects
+float16 on CUDA vs. int8 on CPU) but has zero effect on the download step,
+and referenced this project's own earlier GPU/cloud discussion (Prompt
+#14) for consistency.
+
+--------------------------------------------------------------------------------
+Prompt #37
+--------------------------------------------------------------------------------
+Purpose: Requested a much more detailed README setup section, and a
+Colab notebook to test GPU-accelerated transcription.
+
+Exact prompt:
+"""
+ok now i want you to write a very detailed setup instruction in the readme file, so that anyone with access to the repo can run this, also i want to test out the GPU making the download faster, so give me the ipynb to run in colab
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): README.md rewritten with per-OS prerequisite
+install commands, a full flags table, a Performance section, and a
+Troubleshooting section. The assistant flagged and corrected the framing
+that GPU speeds up download (it does not; only ASR benefits), then built
+notebooks/gpu_asr_benchmark.ipynb, which downloads/extracts audio once and
+times CPU vs. GPU transcription on the same audio, isolating the ASR-only
+comparison from network variance.
+
+================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #38
+--------------------------------------------------------------------------------
+Purpose: Requested a full, evidence-based architecture and performance
+audit of the shipped pipeline before any further optimization, with
+explicit instructions not to assume more sophistication is better and not
+to modify any code yet.
+
+Exact prompt:
+"""
+I have now reached a fairly complete design for the Video Dialogue
+Locator. Before I continue implementing or optimizing the system, I want
+to critically validate whether the architecture I have designed is
+actually the simplest and most effective solution to the problem.
+
+My current architecture is:
+
+Video URL
+    ↓
+Video acquisition
+    ↓
+┌───────────────────────┐
+│                       │
+▼                       ▼
+Audio                  Video
+│                       │
+▼                       ▼
+ASR                    OCR
+│                       │
+▼                       ▼
+Dialogue matching      Dialogue matching
+│                       │
+└───────────┬───────────┘
+            ▼
+    Temporal refinement
+            ↓
+      Exact frame
+            ↓
+       Result
+
+The current design intentionally uses ASR as the primary path and OCR
+as a fallback because:
+
+- ASR can provide a relatively cheap coarse temporal location from the
+  audio stream.
+- OCR requires decoding video frames and is therefore more expensive.
+- The supplied sample video appears to contain the target dialogue in
+  speech rather than as visible text.
+- However, the actual problem statement describes an on-screen dialogue
+  event and the evaluator may use a different video.
+- Therefore, I do not want to remove OCR simply because it is unnecessary
+  for the sample video.
+
+The current implementation/design also includes:
+
+- yt-dlp for acquisition
+- FFmpeg/ffprobe
+- timestamped ASR
+- shared text normalization/fuzzy matching
+- OCR fallback
+- shot-boundary/keyframe sampling
+- cheap text-region prefiltering before OCR
+- local visual refinement
+- FPS-aware frame extraction
+- structured results
+- error handling
+- logging
+- caching
+- unit and integration tests
+
+I want you to act as a senior ML/software engineer reviewing this design.
+
+IMPORTANT:
+Do not assume that more sophisticated means better.
+Do not add components simply because they are technically possible.
+Do not optimize for architectural complexity.
+Do not rewrite the system before establishing evidence that the change
+is actually beneficial.
+
+## Phase 1 — Architecture audit
+
+First, inspect the current repository and implementation.
+
+Compare the implementation against the design and determine:
+
+1. Are all components actually necessary?
+2. Is ASR-first/OCR-fallback the correct strategy?
+3. Is there a better way to combine ASR and OCR without unnecessarily
+   increasing runtime?
+4. Is shot-boundary sampling actually beneficial for this problem?
+5. Is the cheap OCR prefilter actually worthwhile, or does its own
+   computation outweigh the OCR it saves?
+6. Is the current temporal-refinement strategy correct?
+7. Is linear scanning within the candidate shot better than binary search
+   for the noisy OCR predicate?
+8. Are the current matching thresholds justified?
+9. Are the confidence scores meaningful?
+10. Is the result of the pipeline actually the first frame required by
+    the problem statement?
+11. Are there hidden assumptions that only work for the supplied video?
+12. What happens when:
+    - the dialogue is spoken but not visible,
+    - the dialogue is visible but not spoken,
+    - both exist,
+    - neither exists,
+    - ASR and OCR disagree,
+    - subtitles lag behind speech,
+    - subtitles lead speech,
+    - OCR misreads the phrase,
+    - ASR misrecognizes the phrase,
+    - the phrase appears multiple times?
+
+For every component, classify it as:
+
+- REQUIRED
+- USEFUL
+- QUESTIONABLE
+- UNNECESSARY
+
+Explain the reasoning.
+
+## Phase 2 — Performance audit
+
+The current implementation takes a long time to run on my laptop and
+uses significant CPU.
+
+Do not immediately optimize blindly.
+
+Measure/profile where possible.
+
+Identify the largest sources of:
+
+- network/download time,
+- CPU usage,
+- memory usage,
+- video decoding,
+- ASR inference,
+- OCR inference,
+- frame extraction,
+- unnecessary repeated work.
+
+Separate:
+
+1. acquisition cost,
+2. ASR cost,
+3. OCR cost,
+4. frame-processing cost,
+5. Python/application overhead.
+
+Determine which bottlenecks actually matter.
+
+## Phase 3 — Acquisition strategy
+
+The current acquisition stage may be doing more work than necessary.
+
+Investigate whether the pipeline can be made faster by:
+
+- downloading audio separately for the ASR stage,
+- selecting an appropriate lower-resolution video stream,
+- avoiding unnecessarily high bitrate,
+- caching downloaded media,
+- using concurrent fragments where supported,
+- retrieving/processing only relevant temporal regions where technically
+  possible,
+- avoiding repeated downloads during development.
+
+However, do not sacrifice correctness merely to reduce download size.
+
+Check the actual formats available from the target source before making
+recommendations.
+
+Explain the tradeoff between:
+
+download size
+vs.
+ASR accuracy
+vs.
+OCR accuracy
+vs.
+frame quality.
+
+## Phase 4 — CPU/GPU analysis
+
+Determine which components would benefit meaningfully from GPU
+acceleration.
+
+In particular evaluate:
+
+- ASR
+- OCR
+- video decoding
+- OpenCV preprocessing
+- frame extraction
+
+Do not recommend GPU acceleration for components that will not benefit
+meaningfully.
+
+Determine whether the current models/libraries can use CUDA or another
+GPU backend.
+
+Also explain how the repository could be run on a remote GPU machine
+without requiring a local GPU.
+
+The repository must remain portable so that:
+
+- CPU-only execution remains possible,
+- GPU execution can be enabled through configuration,
+- application code does not depend on a specific physical machine.
+
+## Phase 5 — Testing audit
+
+Review whether the current tests actually validate the important behavior.
+
+Pay particular attention to:
+
+- STT matching
+- OCR matching
+- multimodal disagreement
+- temporal offsets
+- multiple occurrences
+- first-frame localization
+- different FPS values
+- VFR videos
+- no-match cases
+- failed modalities
+- cache behavior
+- acquisition failures
+
+Identify missing tests.
+
+Do not replace unit tests with expensive end-to-end tests.
+
+## Phase 6 — Final recommendation
+
+After completing the analysis, provide:
+
+1. Current architecture assessment.
+2. Performance bottleneck assessment.
+3. Recommended architecture.
+4. Recommended acquisition strategy.
+5. Recommended CPU/GPU strategy.
+6. Components to keep.
+7. Components to simplify/remove.
+8. Components to add only if justified.
+9. Testing changes.
+10. Expected performance improvements.
+11. Risks introduced by each optimization.
+
+For every proposed architectural change, explain:
+
+- what problem it solves,
+- why the current implementation is insufficient,
+- what complexity it introduces,
+- whether the improvement is worth that complexity.
+
+Do NOT modify the code yet.
+
+I want to review the findings and approve the final optimization plan
+before implementation.
+"""
+
+Resulting decision / outcome:
+No decision — a review request. The assistant read every module and test
+file in src/vdl/ and tests/, and produced a full six-phase audit. Key
+findings: candidate selection picked the highest-scoring match globally
+rather than the chronologically first one (a real violation of "finds
+where dialogue first appears"); window-size-delta duplicates could cause
+false "ambiguous" results (confirmed against a real run where the top two
+raw scores were only 0.057 apart, just above the 0.05 margin); the OCR
+edge-density prefilter was used in the coarse pass but not reused in the
+fine-grained visual_refinement.py scan; VFR video had zero test coverage.
+ASR-primary/OCR-fallback, the acquisition strategy, caching, and GPU
+configuration were all assessed as already correctly reasoned and not
+recommended for change. No code was modified.
+
+--------------------------------------------------------------------------------
+Prompt #39
+--------------------------------------------------------------------------------
+Purpose: Reviewed and approved a scoped subset of the audit's findings as
+concrete fixes to implement, explicitly excluding every speculative
+optimization the audit had raised, and requested a specific validation
+protocol afterward.
+
+Exact prompt:
+"""
+I reviewed the architecture audit and agree with the findings.
+
+I do not want to change the overall architecture at this point.
+
+The current ASR-primary / OCR-fallback design, acquisition strategy,
+caching, GPU configuration, shot-based OCR strategy, and current testing
+structure should remain unless a concrete correctness issue requires a
+change.
+
+I want you to implement only the following evidence-based fixes.
+
+## 1. Fix first-occurrence selection
+
+The problem statement requires the system to return the exact frame where
+the target dialogue FIRST appears.
+
+The current implementation can incorrectly select a later occurrence
+because candidates are sorted by fuzzy-match score rather than chronological
+appearance.
+
+Change the candidate-selection logic so that:
+
+1. All above-threshold candidates are generated.
+2. Candidates representing the same temporal occurrence are deduplicated
+   or grouped.
+3. Distinct occurrences remain separate.
+4. The earliest valid occurrence is selected.
+5. A later occurrence with a higher fuzzy score must NOT replace an earlier
+   valid occurrence.
+6. Multiple genuinely distinct occurrences should still be represented
+   correctly.
+7. Ambiguity should be evaluated between distinct temporal occurrences,
+   not overlapping candidate windows representing the same occurrence.
+
+Do not use a simplistic "any overlap means same occurrence" rule.
+
+Choose and justify an appropriate temporal proximity/grouping threshold
+based on the existing timestamp structure.
+
+Preserve the existing fuzzy matching behavior.
+
+## 2. Add regression tests for candidate selection
+
+Add tests covering at least:
+
+- an earlier occurrence with a lower score and a later occurrence with a
+  higher score;
+- two overlapping candidate windows representing the same occurrence;
+- two genuinely separate occurrences;
+- multiple candidate window sizes around one occurrence;
+- ambiguity between genuinely separate occurrences.
+
+The tests must verify the actual pipeline behavior, not just the matcher
+in isolation.
+
+Do not weaken or remove existing tests.
+
+## 3. Reuse the OCR prefilter during fine-grained refinement
+
+The audit found that has_probable_text_region() is used during the coarse
+OCR stage but not during visual_refinement.py.
+
+Modify the fine-grained OCR scan so that:
+
+frame
+→ cheap text-region prefilter
+→ OCR only when the frame passes the prefilter
+
+The purpose is to avoid unnecessary Tesseract calls.
+
+Preserve the existing OCR matching semantics.
+
+Add a unit test that verifies that frames rejected by the cheap prefilter
+do not trigger the expensive OCR call.
+
+## 4. Add VFR test coverage
+
+The design explicitly supports VFR videos, but there is currently no
+test covering that path.
+
+Add a focused test/fixture that verifies frame extraction behaves
+correctly when is_vfr=True.
+
+Do not redesign the frame-extraction implementation unless the test
+demonstrates that the existing implementation is incorrect.
+
+## 5. Do NOT implement these changes yet
+
+Do NOT implement:
+
+- streaming/early-stop ASR,
+- parallel ASR + OCR,
+- GPU-specific architecture changes,
+- a new OCR engine,
+- VLMs,
+- new cloud infrastructure,
+- databases,
+- queues,
+- distributed processing,
+- changes to acquisition format selection,
+- speculative performance optimizations.
+
+The audit did not establish that these are currently necessary.
+
+## 6. Preserve the existing architecture
+
+Do not restructure the project unnecessarily.
+
+The intended architecture remains:
+
+Video acquisition
+    ↓
+ASR
+    ↓
+ASR matching
+    ↓
+if no confident result:
+    ↓
+OCR fallback
+    ↓
+visual matching
+    ↓
+temporal refinement
+    ↓
+frame extraction
+    ↓
+structured result
+
+Keep the existing module boundaries unless a change is necessary for
+one of the fixes above.
+
+## 7. Validation
+
+Before making changes, briefly explain the exact files/functions you
+intend to modify.
+
+Then implement the changes.
+
+After implementation:
+
+1. Run the targeted tests.
+2. Run the complete test suite.
+3. Report all test results.
+4. Show any relevant performance difference.
+5. Inspect the final diff.
+6. Confirm that no unrelated architecture was changed.
+
+Do not declare success merely because the code runs.
+
+The goal is to fix the demonstrated correctness gaps and the demonstrated
+OCR inefficiency while keeping the architecture stable.
+"""
+
+Resulting decision / outcome:
+Decision (user-directed, scoped): implemented exactly the four approved
+fixes and nothing else. matching.py gained dedupe_by_occurrence(),
+grouping candidates by word_span overlap (chosen over a seconds-based
+proximity threshold, justified against a real 4.4-second spread between
+duplicates of one true occurrence) and returning one chronologically-
+sorted representative per distinct occurrence. pipeline.py was changed to
+select the earliest valid occurrence rather than the highest-scoring one,
+in both the ASR and OCR paths. visual_refinement.py was changed to call
+has_probable_text_region() before the Tesseract call. A real VFR fixture
+was generated with ffmpeg and used to add two integration tests. Five new
+pipeline-level regression tests and five new matching-level unit tests
+were added; two existing visual_refinement tests were updated (not
+weakened) to accommodate the new prefilter call. Full suite: 95 passed, 2
+skipped (unchanged skip reasons). Diff reviewed and confirmed scoped to
+exactly these files, with none of the excluded items touched.
+
+================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #40
+--------------------------------------------------------------------------------
+Purpose: Requested Mermaid diagram code for this project's architecture,
+pipeline, and state flow.
+
+Exact prompt:
+"""
+can you give me mermaid code for the architecture diagram, state diagram, etc for this project
+"""
+
+Resulting decision / outcome:
+No architecture decision. The assistant produced four Mermaid diagrams
+(component architecture, pipeline sequence, result-state, and the
+candidate-resolution flow from Prompt #39's fix), grounded in the actual
+module/function names in src/vdl/.
+
+--------------------------------------------------------------------------------
+Prompt #41
+--------------------------------------------------------------------------------
+Purpose: Requested a real run using the smaller "tiny" ASR model, to see
+the speed/accuracy tradeoff in practice.
+
+Exact prompt:
+"""
+set it to tiny and run it
+"""
+
+Resulting decision / outcome:
+No architecture decision. vdl locate was run with --asr-model tiny against
+the real ok.ru target. Result: wall time dropped to 2m36s (versus 4-10
+minutes for "small" on the same video), but the target phrase was
+genuinely mis-transcribed ("My mind reveals its stagnation" instead of
+"rebels at"), surviving the 0.80 match threshold only narrowly at
+confidence 0.897. Used afterward as concrete evidence for why "small"
+stays the default.
+
+--------------------------------------------------------------------------------
+Prompt #42
+--------------------------------------------------------------------------------
+Purpose: Requested a full log of every pipeline run this session and what
+was discovered from each one; separately asked whether chunking the audio
+would make transcription more efficient.
+
+Exact prompt:
+"""
+can you log all of this, everysingle time the pipeline was run and what we discovered
+
+also would chunking make the transcribing more effiecint
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): RUN_LOG.md created, a chronological record of
+every real vdl locate invocation this session with what each one actually
+returned and revealed, cross-linked from README.md. On chunking: the
+assistant distinguished naive independent-chunk splitting (risks cutting
+a word/phrase across a boundary, not recommended) from parallel chunking
+with overlap across CPU cores (a real, plausible lever, not measured or
+implemented, offered as something to actually benchmark on request).
+
+================================================================================
+
+--------------------------------------------------------------------------------
+Prompt #43
+--------------------------------------------------------------------------------
+Purpose: Requested a step-by-step guide to run the pipeline independently,
+to verify the assistant's work personally.
+
+Exact prompt:
+"""
+give me steps to run the pipeline myself so i can verify
+"""
+
+Resulting decision / outcome:
+No decision — informational. The assistant provided prerequisite
+installation, environment setup, the exact command to run against the
+problem statement's target URL/text, how to run the test suite, and what
+specifically to check in the output (including the asr_candidates count
+as direct, checkable evidence of the Prompt #39 fix).
+
+--------------------------------------------------------------------------------
+Prompt #44
+--------------------------------------------------------------------------------
+Purpose: Asked why prompt.txt didn't look fully up to date, clarified that
+2 prompts had been deleted intentionally and should stay deleted, and
+requested that all other non-trivial prompts from this session be added.
+
+Exact prompt:
+"""
+why does prompt.txt not look completely updated? make sure other than very trivial promts all prompts are present in that file
+"""
+
+Resulting decision / outcome:
+Decision (user-directed): backfilled prompt.txt with every substantive
+prompt from this session, preserving the user's deletion of one earlier
+entry (a commit-splitting-skill request); no attempt was made to identify
+or restore a second deletion, since only one numbering gap was actually
+observable in the file at the time. The numbering gap this left behind was
+closed in a later renumbering pass (see below). Purely repetitive status-check prompts
+("check the output", "run pipeline again", etc.), tooling requests
+unrelated to this project (statusline configuration, the /commit skill
+invocation), and three prompts this session where the user explicitly
+said not to log them (the APPROACH.md draft, the APPROACH.md cleanup
+request, and the README-completeness question) were excluded.
+
+================================================================================
+
+
+

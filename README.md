@@ -5,9 +5,14 @@ timestamp where that dialogue first appears, and extracts the frame as an
 image. Speech-to-text (ASR) is the primary pipeline; OCR is a secondary
 fallback for dialogue that's shown as on-screen text rather than spoken.
 
-See `DESIGN.md` for the full architecture and the reasoning behind every
-design choice, `AGENTS.md` for the engineering rules this codebase follows,
-and `prompt.txt` for the record of prompts/decisions that shaped it.
+See `APPROACH.md` for the narrative of how this design was arrived at
+(initial interpretation, what was discovered by inspecting the real video,
+alternatives considered and rejected, and where a decision was reversed
+after being challenged), `DESIGN.md` for the technical architecture
+reference, `AGENTS.md` for the engineering rules this codebase follows,
+`prompt.txt` for the verbatim record of prompts/decisions that shaped it,
+and `RUN_LOG.md` for a chronological record of real pipeline runs and what
+each one revealed.
 
 ## Prerequisites
 
