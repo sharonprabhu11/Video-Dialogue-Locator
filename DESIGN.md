@@ -47,13 +47,25 @@ disagreeing results) that isn't justified by any stated latency/throughput
 requirement in the problem statement.
 
 **Acquisition format selection:** the video is fetched with yt-dlp's
-`wv*+wa/w` selector (worst video + worst audio, falling back to a single
-worst combined format) rather than best quality. ASR, the primary pipeline,
-needs no video quality at all, and frame extraction only ever needs one
-still frame, not a high-bitrate stream throughout. Measured against the
-real target video from the problem statement, this cut the download from
-an estimated ~1GB (best quality) to 122MB with no effect on correctness —
-the extracted frame was still clearly legible. Deliberately not
+`wv*[height>=240]+wa/w[height>=240]/bv*+ba/b` selector — a low-but-
+verified-quality stream (>=240p) when the source reports resolution
+metadata, falling back to **best** quality (not worst) when it doesn't.
+ASR, the primary pipeline, needs no video quality at all, and frame
+extraction only ever needs one still frame, so downloading less is
+attractive — but this default went through a real correctness regression
+first, worth recording: an earlier version used a blind `wv*+wa/w` ("worst
+video + worst audio, or the single worst combined format"), reasoning that
+any low-quality tier would do. Run against the real target video, it
+resolved to ok.ru's `mobile` format — a tier with unverifiable
+audio/resolution metadata, one step below the tier actually validated —
+and it measurably degraded transcription accuracy: "rebels at" was misheard
+as "verbels its" (see `prompt.txt`). The fix is to only take the cheap
+path when a quality floor can be confirmed (height is broadly-reported,
+standard metadata, unlike this source's audio bitrate fields), and to fall
+back to the known-safe best-quality selector — never to an unverified
+"worst" — when it can't be. Verified against the real target: this
+resolves to a real 320×240/373kbps tier rather than gambling on whatever
+the site's internal ranking considers "worst". Deliberately not
 `bestaudio` alone: a source offering separate audio-only streams would then
 yield a file with no video track at all, breaking frame extraction, which
 always has to run regardless of which pipeline resolves the match. This is

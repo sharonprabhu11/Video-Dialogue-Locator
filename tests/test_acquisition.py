@@ -118,8 +118,9 @@ def test_acquire_video_uses_low_cost_format_by_default(tmp_path):
     yt_dlp_cmd = seen_commands[0]
     assert "-f" in yt_dlp_cmd
     format_arg = yt_dlp_cmd[yt_dlp_cmd.index("-f") + 1]
-    assert format_arg == "wv*+wa/w"
+    assert format_arg == "wv*[height>=240]+wa/w[height>=240]/bv*+ba/b"
     assert "bestaudio" not in format_arg  # would risk a video-less file; frame extraction always needs video
+    assert format_arg.endswith("bv*+ba/b")  # falls back to BEST, not worst, when no quality floor is verifiable
 
 
 def test_acquire_video_respects_custom_format_selector(tmp_path):

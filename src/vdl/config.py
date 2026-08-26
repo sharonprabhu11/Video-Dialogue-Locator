@@ -43,12 +43,13 @@ class PipelineConfig:
 
     asr_model_name: str = "small"
     asr_device: str = "cpu"
-    # "wv*+wa/w": worst video + worst audio, falling back to a single worst
-    # combined format. ASR (primary) needs no video quality, and frame
-    # extraction only needs one still frame — see acquisition.py for the
-    # measured justification. Override for a higher-quality output frame
-    # image or better OCR-fallback fidelity, at the cost of download time.
-    video_format: str = "wv*+wa/w"
+    # Verified-floor low quality (>=240p), falling back to BEST (not worst)
+    # when no format reports a checkable resolution — see acquisition.py
+    # for why an unqualified "worst" was tried first and reverted after it
+    # measurably degraded real transcription accuracy. Override for a
+    # higher-quality output frame image or better OCR-fallback fidelity,
+    # at the cost of download time.
+    video_format: str = "wv*[height>=240]+wa/w[height>=240]/bv*+ba/b"
     match: MatchConfig = None  # type: ignore[assignment]
     refine: RefineConfig = None  # type: ignore[assignment]
     ocr: OCRConfig = None  # type: ignore[assignment]

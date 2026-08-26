@@ -18,17 +18,21 @@ from vdl.models import AcquiredVideo
 
 logger = logging.getLogger("vdl.acquisition")
 
-# Worst video + worst audio (falling back to a single worst combined
-# format) rather than best: ASR (the primary pipeline) doesn't need video
-# quality at all, and frame extraction only ever needs one still frame, not
-# a high-bitrate stream. Measured against the real target video, this cut
-# the download from an estimated ~1GB (best quality) to 122MB (see
-# prompt.txt) with no effect on correctness. Deliberately NOT "bestaudio"
-# alone: on a source that offers separate audio-only streams, that would
-# yield a file with no video track at all, breaking the frame-extraction
-# step that always has to run regardless of which pipeline (ASR or OCR)
-# resolves the match.
-DEFAULT_FORMAT_SELECTOR = "wv*+wa/w"
+# Prefer a verified-floor low-quality stream (>=240p, both video+audio
+# present) over best quality, since ASR doesn't need video quality and
+# frame extraction only needs one still frame. Falls back to best quality
+# -- not to the unqualified "worst" -- when no format reports a height we
+# can check: a real run against the target video showed plain "wv*+wa/w"
+# resolving to an even-lower, unverifiable-quality tier than intended
+# (ok.ru's "mobile" format, whose audio/resolution metadata reports as
+# unknown) and it measurably degraded transcription accuracy ("rebels at"
+# misheard as "verbels its" -- see prompt.txt). Correctness takes priority
+# over download speed when the quality floor can't be confirmed.
+# Deliberately not "bestaudio" alone: a source with separate audio-only
+# streams would then yield a file with no video track at all, breaking the
+# frame-extraction step that always has to run regardless of which
+# pipeline (ASR or OCR) resolves the match.
+DEFAULT_FORMAT_SELECTOR = "wv*[height>=240]+wa/w[height>=240]/bv*+ba/b"
 
 
 def acquire_video(
